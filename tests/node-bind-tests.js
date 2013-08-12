@@ -47,7 +47,7 @@ suite('Text bindings', function() {
   setup(doSetup);
   teardown(doTeardown);
 
-  test('Text', function() {
+  test('Basic', function() {
     var text = document.createTextNode('hi');
     var model = {a: 1};
     text.bind('textContent', model, 'a');
@@ -65,7 +65,7 @@ suite('Text bindings', function() {
     // TODO(rafaelw): Throw on binding to unavailable property?
   });
 
-  test('Text - No Path', function() {
+  test('No Path', function() {
     var text = document.createTextNode('hi');
     var model = 1;
     text.bind('textContent', model);
@@ -119,6 +119,14 @@ suite('Element attribute bindings', function() {
     el.bind('foo', model);
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('1', el.getAttribute('foo'));
+  });
+
+  test('Path unreachable', function() {
+    var el = testDiv.appendChild(document.createElement('div'));
+    var model = {};
+    el.bind('foo', model, 'bar');
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('', el.getAttribute('foo'));
   });
 
   test('Dashes', function() {
@@ -195,12 +203,42 @@ suite('Form Element Bindings', function() {
     assert.strictEqual('', el.value);
   }
 
+  function inputTextAreaNoPath(type) {
+    var el = testDiv.appendChild(document.createElement(type));
+    var model = 42;
+    el.bind('value', model);
+    assert.strictEqual('42', el.value);
+  }
+
+  function inputTextAreaPathUnreachable(type) {
+    var el = testDiv.appendChild(document.createElement(type));
+    var model = {};
+    el.bind('value', model, 'a');
+    assert.strictEqual('', el.value);
+  }
+
   test('Input.value', function() {
     inputTextAreaValueTest('input');
   });
 
+  test('Input.value - no path', function() {
+    inputTextAreaNoPath('input');
+  });
+
+  test('Input.value - path unreachable', function() {
+    inputTextAreaPathUnreachable('input');
+  });
+
   test('TextArea.value', function() {
     inputTextAreaValueTest('textarea');
+  });
+
+  test('TextArea.value - no path', function() {
+    inputTextAreaNoPath('textarea');
+  });
+
+  test('TextArea.value - path unreachable', function() {
+    inputTextAreaPathUnreachable('textarea');
   });
 
   test('Input.value - user value rejected', function() {
@@ -271,6 +309,15 @@ suite('Form Element Bindings', function() {
 
     input.click();
     assert.isFalse(model.x);
+  });
+
+  test('(Checkbox)Input.checked - path unreachable', function() {
+    var input = testDiv.appendChild(document.createElement('input'));
+    testDiv.appendChild(input);
+    input.type = 'checkbox';
+    var model = {};
+    input.bind('checked', model, 'x');
+    assert.isFalse(input.checked);
   });
 
   test('(Checkbox)Input.checked 2', function() {
@@ -367,6 +414,14 @@ suite('Form Element Bindings', function() {
     input.checked = false;
     dispatchEvent('change', input);
     assert.isTrue(model.x);
+  });
+
+  test('(Radio)Input.checked - path unreachable', function() {
+    var input = testDiv.appendChild(document.createElement('input'));
+    input.type = 'radio';
+    var model = {};
+    input.bind('checked', model, 'x');
+    assert.isFalse(input.checked);
   });
 
   test('(Radio)Input.checked 2', function() {
@@ -495,5 +550,35 @@ suite('Form Element Bindings', function() {
     select.selectedIndex = 1;
     dispatchEvent('change', select);
     assert.strictEqual(1, model.val);
+  });
+
+  test('Select.selectedIndex - path NaN', function() {
+    var select = testDiv.appendChild(document.createElement('select'));
+    testDiv.appendChild(select);
+    var option0 = select.appendChild(document.createElement('option'));
+    var option1 = select.appendChild(document.createElement('option'));
+    var option2 = select.appendChild(document.createElement('option'));
+
+    var model = {
+      val: 'foo'
+    };
+
+    select.bind('selectedIndex', model, 'val');
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual(0, select.selectedIndex);
+  });
+
+  test('Select.selectedIndex - path unreachable', function() {
+    var select = testDiv.appendChild(document.createElement('select'));
+    testDiv.appendChild(select);
+    var option0 = select.appendChild(document.createElement('option'));
+    var option1 = select.appendChild(document.createElement('option'));
+    var option2 = select.appendChild(document.createElement('option'));
+
+    var model = {};
+
+    select.bind('selectedIndex', model, 'val');
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual(0, select.selectedIndex);
   });
 });
