@@ -557,6 +557,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
     var option1 = select.appendChild(document.createElement('option'));
+    option1.selected = true;
     var option2 = select.appendChild(document.createElement('option'));
 
     var model = {
@@ -573,6 +574,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
     var option1 = select.appendChild(document.createElement('option'));
+    option1.selected = true;
     var option2 = select.appendChild(document.createElement('option'));
 
     var model = {};
