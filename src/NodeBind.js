@@ -300,19 +300,50 @@
     return this.bindings[name] = new InputBinding(this, name, model, path);
   }
 
-  function SelectedIndexBinding(element, model, path) {
-    InputBinding.call(this, element, 'selectedIndex', model, path);
+  function OptionValueBinding(element, model, path) {
+    InputBinding.call(this, element, 'value', model, path);
   }
 
-  SelectedIndexBinding.prototype = createObject({
+  OptionValueBinding.prototype = createObject({
     __proto__: InputBinding.prototype,
 
     boundValueChanged: function(value) {
-      var newValue = Number(value);
-      if (newValue <= this.node.length) {
-        this.node[this.property] = newValue;
-        return;
+      var select;
+      var oldValue;
+      if (this.node.parentNode instanceof HTMLSelectElement) {
+        select = this.node.parentNode;
+        oldValue = select.value;
       }
+
+      InputBinding.prototype.boundValueChanged.call(this, value);
+      if (select && select.value !== oldValue) {
+        var event = document.createEvent('Event');
+        event.initEvent(getEventForInputType(select), true, false);
+        select.dispatchEvent(event);
+      }
+    }
+  });
+
+  HTMLOptionElement.prototype.bind = function(name, model, path) {
+    if (name !== 'value')
+      return HTMLElement.prototype.bind.call(this, name, model, path);
+
+    this.unbind(name);
+    this.removeAttribute(name);
+    return this.bindings[name] = new OptionValueBinding(this, model, path);
+  }
+
+  function SelectBinding(element, property, model, path) {
+    InputBinding.call(this, element, property, model, path);
+  }
+
+  SelectBinding.prototype = createObject({
+    __proto__: InputBinding.prototype,
+
+    boundValueChanged: function(value) {
+      this.node[this.property] = value;
+      if (this.node[this.property] == value)
+        return;
 
       // The binding may wish to bind to an <option> which has not yet been
       // produced by a child <template>. Delay a maximum of two times: once for
@@ -320,22 +351,22 @@
       var maxRetries = 2;
       var self = this;
       function delaySetSelectedIndex() {
-        if (newValue > self.node.length && maxRetries--)
+        self.node[self.property] = value;
+        if (self.node[self.property] != value && maxRetries--)
           ensureScheduled(delaySetSelectedIndex);
-        else
-          self.node[self.property] = newValue;
       }
       ensureScheduled(delaySetSelectedIndex);
     }
   });
 
   HTMLSelectElement.prototype.bind = function(name, model, path) {
-    if (name.toLowerCase() !== 'selectedindex')
+    if (name.toLowerCase() !== 'selectedindex' && name !== 'value')
       return HTMLElement.prototype.bind.call(this, name, model, path);
 
     this.unbind(name);
     this.removeAttribute(name);
-    return this.bindings[name] = new SelectedIndexBinding(this, model, path);
+    var property = name === 'value' ? 'value' : 'selectedIndex';
+    return this.bindings[name] = new SelectBinding(this, property, model, path);
   }
 
   // TODO(rafaelw): We should polyfill a Microtask Promise and define it if it isn't.

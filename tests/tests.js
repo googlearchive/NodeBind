@@ -569,6 +569,18 @@ suite('Form Element Bindings', function() {
     assert.strictEqual(0, select.selectedIndex);
   });
 
+  test('Option.value', function() {
+    var option = testDiv.appendChild(document.createElement('option'));
+    var model = {x: 42};
+    option.bind('value', model, 'x');
+    assert.strictEqual('42', option.value);
+
+    model.x = 'Hi';
+    assert.strictEqual('42', option.value);
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('Hi', option.value);
+  });
+
   test('Select.selectedIndex - path unreachable', function() {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
@@ -582,5 +594,41 @@ suite('Form Element Bindings', function() {
     select.bind('selectedIndex', model, 'val');
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(0, select.selectedIndex);
+  });
+
+  test('Select.value', function() {
+    var select = testDiv.appendChild(document.createElement('select'));
+    testDiv.appendChild(select);
+    var option0 = select.appendChild(document.createElement('option'));
+    var option1 = select.appendChild(document.createElement('option'));
+    var option2 = select.appendChild(document.createElement('option'));
+
+    var model = {
+      opt0: 'a',
+      opt1: 'b',
+      opt2: 'c',
+      selected: 'b'
+    };
+
+    option0.bind('value', model, 'opt0');
+    option1.bind('value', model, 'opt1');
+    option2.bind('value', model, 'opt2');
+
+    select.bind('value', model, 'selected');
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('b', select.value);
+
+    select.value = 'c';
+    dispatchEvent('change', select);
+    assert.strictEqual('c', model.selected);
+
+    model.opt2 = 'X';
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('X', select.value);
+    assert.strictEqual('X', model.selected);
+
+    model.selected = 'a';
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('a', select.value);
   });
 });
