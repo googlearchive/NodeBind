@@ -196,8 +196,8 @@
   function InputBinding(node, property, model, path) {
     NodeBinding.call(this, node, property, model, path);
     this.eventType = getEventForInputType(this.node);
-    this.boundNodeValueToModel = this.nodeValueChanged.bind(this);
-    this.node.addEventListener(this.eventType, this.boundNodeValueToModel,
+    this.boundNodeValueChanged = this.nodeValueChanged.bind(this);
+    this.node.addEventListener(this.eventType, this.boundNodeValueChanged,
                                true);
   }
 
@@ -218,7 +218,7 @@
         return;
 
       this.node.removeEventListener(this.eventType,
-                                    this.boundNodeValueToModel,
+                                    this.boundNodeValueChanged,
                                     true);
       NodeBinding.prototype.close.call(this);
     }
@@ -309,18 +309,19 @@
 
     boundValueChanged: function(value) {
       var select;
+      var selectBinding;
       var oldValue;
-      if (this.node.parentNode instanceof HTMLSelectElement) {
+      if (this.node.parentNode instanceof HTMLSelectElement &&
+          this.node.parentNode.bindings &&
+          this.node.parentNode.bindings.value instanceof SelectBinding) {
         select = this.node.parentNode;
+        selectBinding = select.bindings.value;
         oldValue = select.value;
       }
 
       InputBinding.prototype.boundValueChanged.call(this, value);
-      if (select && select.value !== oldValue) {
-        var event = document.createEvent('Event');
-        event.initEvent(getEventForInputType(select), true, false);
-        select.dispatchEvent(event);
-      }
+      if (select && !selectBinding.closed && select.value !== oldValue)
+        selectBinding.nodeValueChanged();
     }
   });
 
@@ -360,13 +361,15 @@
   });
 
   HTMLSelectElement.prototype.bind = function(name, model, path) {
-    if (name.toLowerCase() !== 'selectedindex' && name !== 'value')
+    if (name === 'selectedindex')
+      name = 'selectedIndex';
+
+    if (name !== 'selectedIndex' && name !== 'value')
       return HTMLElement.prototype.bind.call(this, name, model, path);
 
     this.unbind(name);
     this.removeAttribute(name);
-    var property = name === 'value' ? 'value' : 'selectedIndex';
-    return this.bindings[name] = new SelectBinding(this, property, model, path);
+    return this.bindings[name] = new SelectBinding(this, name, model, path);
   }
 
   // TODO(rafaelw): We should polyfill a Microtask Promise and define it if it isn't.
