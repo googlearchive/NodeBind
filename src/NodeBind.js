@@ -308,19 +308,19 @@
     __proto__: InputBinding.prototype,
 
     boundValueChanged: function(value) {
-      var select;
+      var select = this.node.parentNode instanceof HTMLSelectElement ?
+          this.node.parentNode : undefined;
       var selectBinding;
       var oldValue;
-      if (this.node.parentNode instanceof HTMLSelectElement &&
-          this.node.parentNode.bindings &&
-          this.node.parentNode.bindings.value instanceof SelectBinding) {
-        select = this.node.parentNode;
+      if (select &&
+          select.bindings &&
+          select.bindings.value instanceof SelectBinding) {
         selectBinding = select.bindings.value;
         oldValue = select.value;
       }
 
       InputBinding.prototype.boundValueChanged.call(this, value);
-      if (select && !selectBinding.closed && select.value !== oldValue)
+      if (selectBinding && !selectBinding.closed && select.value !== oldValue)
         selectBinding.nodeValueChanged();
     }
   });
