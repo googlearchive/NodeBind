@@ -78,6 +78,21 @@ suite('Text bindings', function() {
     text.bind('textContent', model, 'a');
     assert.strictEqual(text.data, '');
   });
+
+  test('Observer is Model', function() {
+    var text = document.createTextNode();
+    var model = {a: { b: { c: 1}}};
+    var observer = new PathObserver(model, 'a.b.c');
+
+    text.bind('textContent', observer, 'value');
+    assert.strictEqual(3, Observer._allObserversCount);
+    assert.strictEqual('1', text.data);
+
+    model.a.b.c = 2;
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual('2', text.data);
+    text.unbind('textContent');
+  });
 });
 
 suite('Element attribute bindings', function() {

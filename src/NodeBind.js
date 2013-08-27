@@ -76,14 +76,22 @@
     this.property = property;
     this.model = model;
     this.path = path || '';
-    this.observer = new PathObserver(this.model, this.path,
-                                     this.boundValueChanged,
-                                     this);
-    this.boundValueChanged(this.value);
+    if ((this.model instanceof PathObserver ||
+         this.model instanceof CompoundPathObserver) &&
+         this.path === 'value') {
+      this.observer = this.model;
+      this.observer.target = this;
+      this.observer.callback = this.valueChanged;
+    } else {
+      this.observer = new PathObserver(this.model, this.path,
+                                       this.valueChanged,
+                                       this);
+    }
+    this.valueChanged(this.value);
   }
 
   NodeBinding.prototype = {
-    boundValueChanged: function(value) {
+    valueChanged: function(value) {
       this.node[this.property] = this.sanitizeBoundValue(value);
     },
 
@@ -135,7 +143,7 @@
   AttributeBinding.prototype = createObject({
     __proto__: NodeBinding.prototype,
 
-    boundValueChanged: function(value) {
+    valueChanged: function(value) {
       if (this.conditional) {
         if (value)
           this.node.setAttribute(this.property, '');
@@ -307,7 +315,7 @@
   OptionValueBinding.prototype = createObject({
     __proto__: InputBinding.prototype,
 
-    boundValueChanged: function(value) {
+    valueChanged: function(value) {
       var select = this.node.parentNode instanceof HTMLSelectElement ?
           this.node.parentNode : undefined;
       var selectBinding;
@@ -319,7 +327,7 @@
         oldValue = select.value;
       }
 
-      InputBinding.prototype.boundValueChanged.call(this, value);
+      InputBinding.prototype.valueChanged.call(this, value);
       if (selectBinding && !selectBinding.closed && select.value !== oldValue)
         selectBinding.nodeValueChanged();
     }
@@ -341,7 +349,7 @@
   SelectBinding.prototype = createObject({
     __proto__: InputBinding.prototype,
 
-    boundValueChanged: function(value) {
+    valueChanged: function(value) {
       this.node[this.property] = value;
       if (this.node[this.property] == value)
         return;
