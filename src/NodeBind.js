@@ -114,7 +114,7 @@
     },
 
     set value(value) {
-      PathObserver.setValueAtPath(this.model, this.path, value);
+      this.observer.setValue(value);
     },
 
     reset: function() {
