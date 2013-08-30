@@ -80,7 +80,7 @@ suite('Text bindings', function() {
   });
 
   test('Observer is Model', function() {
-    var text = document.createTextNode();
+    var text = document.createTextNode('');
     var model = {a: { b: { c: 1}}};
     var observer = new PathObserver(model, 'a.b.c');
 
