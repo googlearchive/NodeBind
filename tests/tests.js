@@ -283,7 +283,7 @@ suite('Form Element Bindings', function() {
 
     el.value = 'pong';
     dispatchEvent('input', el);
-    assert.strictEqual('pong', PathObserver.getValueAtPath(model, 'a.b.c'));
+    assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
 
     // Start with the model property being absent.
     delete model.a.b.c;
@@ -292,7 +292,7 @@ suite('Form Element Bindings', function() {
 
     el.value = 'pong';
     dispatchEvent('input', el);
-    assert.strictEqual('pong', PathObserver.getValueAtPath(model, 'a.b.c'));
+    assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
     Platform.performMicrotaskCheckpoint();
 
     // Model property unreachable (and unsettable).
@@ -302,7 +302,7 @@ suite('Form Element Bindings', function() {
 
     el.value = 'pong';
     dispatchEvent('input', el);
-    assert.strictEqual(undefined, PathObserver.getValueAtPath(model, 'a.b.c'));
+    assert.strictEqual(undefined, Path.get('a.b.c').getValueFrom(model));
   });
 
   test('(Checkbox)Input.checked', function() {
