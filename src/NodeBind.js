@@ -70,15 +70,17 @@
     this.bindings = {};
   };
 
+  var valuePath = Path.get('value');
+
   function NodeBinding(node, property, model, path) {
     this.closed = false;
     this.node = node;
     this.property = property;
     this.model = model;
-    this.path = path || '';
+    this.path = Path.get(path);
     if ((this.model instanceof PathObserver ||
          this.model instanceof CompoundPathObserver) &&
-         this.path === 'value') {
+         this.path === valuePath) {
       this.observer = this.model;
       this.observer.target = this;
       this.observer.callback = this.valueChanged;
