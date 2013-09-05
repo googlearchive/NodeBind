@@ -52,10 +52,10 @@
   Node.prototype.unbind = function(name) {
     if (!this.bindings)
       this.bindings = {};
-    if (!this.bindings[name])
-      return;
     var binding = this.bindings[name];
-    if (binding && typeof binding.close === 'function')
+    if (!binding)
+      return;
+    if (typeof binding.close === 'function')
       binding.close();
     this.bindings[name] = undefined;
   };
