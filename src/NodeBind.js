@@ -50,11 +50,14 @@
   };
 
   Node.prototype.unbind = function(name) {
-    this.bindings = this.bindings || {};
+    if (!this.bindings)
+      this.bindings = {};
+    if (!this.bindings[name])
+      return;
     var binding = this.bindings[name];
     if (binding && typeof binding.close === 'function')
       binding.close();
-    delete this.bindings[name];
+    this.bindings[name] = undefined;
   };
 
   Node.prototype.unbindAll = function() {
