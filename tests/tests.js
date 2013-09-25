@@ -499,6 +499,9 @@ suite('Form Element Bindings', function() {
   });
 
   test('(Radio)Input.checked 2 - ShadowRoot', function() {
+    if (!HTMLElement.prototype.webkitCreateShadowRoot)
+      return;
+
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
     radioInputChecked2(shadowRoot);
@@ -563,6 +566,9 @@ suite('Form Element Bindings', function() {
   });
 
 test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
+    if (!HTMLElement.prototype.webkitCreateShadowRoot)
+      return;
+
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
     radioInputCheckedMultipleForms(shadowRoot);
