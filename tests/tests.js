@@ -439,11 +439,11 @@ suite('Form Element Bindings', function() {
     assert.isFalse(input.checked);
   });
 
-  test('(Radio)Input.checked 2', function() {
+  function radioInputChecked2(host) {
     var model = {val1: true, val2: false, val3: false, val4: true};
     var RADIO_GROUP_NAME = 'test';
 
-    var container = testDiv.appendChild(document.createElement('div'));
+    var container = host.appendChild(document.createElement('div'));
 
     var el1 = container.appendChild(document.createElement('input'));
     el1.type = 'radio';
@@ -492,9 +492,20 @@ suite('Form Element Bindings', function() {
     assert.strictEqual(false, model.val2);
     assert.strictEqual(true, model.val3);
     assert.strictEqual(true, model.val4);
+  }
+
+  test('(Radio)Input.checked 2', function() {
+    radioInputChecked2(testDiv);
   });
 
-  test('(Radio)Input.checked - multiple forms', function() {
+  test('(Radio)Input.checked 2 - ShadowRoot', function() {
+    var div = document.createElement('div');
+    var shadowRoot = div.webkitCreateShadowRoot();
+    radioInputChecked2(shadowRoot);
+    unbindAll(shadowRoot);
+  });
+
+  function radioInputCheckedMultipleForms(host) {
     var model = {val1: true, val2: false, val3: false, val4: true};
     var RADIO_GROUP_NAME = 'test';
 
@@ -545,6 +556,17 @@ suite('Form Element Bindings', function() {
     // Radio buttons in form1 should be unaffected
     assert.strictEqual(false, model.val1);
     assert.strictEqual(true, model.val2);
+  }
+
+  test('(Radio)Input.checked - multiple forms', function() {
+    radioInputCheckedMultipleForms(testDiv);
+  });
+
+test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
+    var div = document.createElement('div');
+    var shadowRoot = div.webkitCreateShadowRoot();
+    radioInputCheckedMultipleForms(shadowRoot);
+    unbindAll(shadowRoot);
   });
 
   test('Select.selectedIndex', function() {

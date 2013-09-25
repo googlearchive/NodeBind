@@ -17,6 +17,14 @@
 
   var filter = Array.prototype.filter.call.bind(Array.prototype.filter);
 
+  function getTreeScope(node) {
+    while (node.parentNode) {
+      node = node.parentNode;
+    }
+
+    return typeof node.getElementById === 'function' ? node : null;
+  }
+
   // JScript does not have __proto__. We wrap all object literals with
   // createObject which uses Object.create, Object.defineProperty and
   // Object.getOwnPropertyDescriptor to create a new object that does the exact
@@ -247,8 +255,6 @@
   //   http://www.whatwg.org/specs/web-apps/current-work/multipage/number-state.html#radio-button-group
   //
   function getAssociatedRadioButtons(element) {
-    if (!element.ownerDocument.contains(element))
-      return [];
     if (element.form) {
       return filter(element.form.elements, function(el) {
         return el != element &&
@@ -257,7 +263,10 @@
             el.name == element.name;
       });
     } else {
-      var radios = element.ownerDocument.querySelectorAll(
+      var treeScope = getTreeScope(element);
+      if (!treeScope)
+        return [];
+      var radios = treeScope.querySelectorAll(
           'input[type="radio"][name="' + element.name + '"]');
       return filter(radios, function(el) {
         return el != element && !el.form;
