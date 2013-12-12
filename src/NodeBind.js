@@ -202,7 +202,7 @@
 
     function eventHandler() {
       observable.setValue(input[property]);
-      observable.reset();
+      observable.discardChanges();
       (postEventFn || noop)(input);
       Platform.performMicrotaskCheckpoint();
     }
@@ -315,7 +315,7 @@
 
     if (select && select.value != oldValue) {
       selectBinding.setValue(select.value);
-      selectBinding.reset();
+      selectBinding.discardChanges();
       Platform.performMicrotaskCheckpoint();
     }
   }
