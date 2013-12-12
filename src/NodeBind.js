@@ -53,19 +53,27 @@
     }
   }
 
-  Node.prototype.bind = function(name, model, path) {
-    console.error('Unhandled binding to Node: ', this, name, model, path);
+  Node.prototype.bind = function(name, observable) {
+    console.error('Unhandled binding to Node: ', this, name, observable);
   };
 
-  Node.prototype.unbind = function(name) {
-    if (!this.bindings)
-      this.bindings = {};
-    var binding = this.bindings[name];
+  function unbind(node, name) {
+    var bindings = node.bindings;
+    if (!bindings) {
+      node.bindings = {};
+      return;
+    }
+
+    var binding = bindings[name];
     if (!binding)
       return;
-    if (typeof binding.close === 'function')
-      binding.close();
-    this.bindings[name] = undefined;
+
+    binding.close();
+    bindings[name] = undefined;
+  }
+
+  Node.prototype.unbind = function(name) {
+    unbind(this, name);
   };
 
   Node.prototype.unbindAll = function() {
@@ -81,97 +89,60 @@
     this.bindings = {};
   };
 
-  var valuePath = Path.get('value');
-
-  function NodeBinding(node, property, model, path) {
-    this.closed = false;
-    this.node = node;
-    this.property = property;
-    this.model = model;
-    this.path = Path.get(path);
-    if ((this.model instanceof PathObserver ||
-         this.model instanceof CompoundPathObserver) &&
-         this.path === valuePath) {
-      this.observer = this.model;
-      this.observer.target = this;
-      this.observer.callback = this.valueChanged;
-    } else {
-      this.observer = new PathObserver(this.model, this.path,
-                                       this.valueChanged,
-                                       this);
-    }
-    this.valueChanged(this.value);
+  function sanitizeValue(value) {
+    return value === undefined || value === null ? '' : value;
   }
 
-  NodeBinding.prototype = {
-    valueChanged: function(value) {
-      this.node[this.property] = this.sanitizeBoundValue(value);
-    },
+  function updateText(node, value) {
+    node.data = sanitizeValue(value);
+  }
 
-    sanitizeBoundValue: function(value) {
-      return value == undefined ? '' : String(value);
-    },
+  function textBinding(node) {
+    return function(value) {
+      return updateText(node, value);
+    };
+  }
 
-    close: function() {
-      if (this.closed)
-        return;
-      this.observer.close();
-      this.observer = undefined;
-      this.node = undefined;
-      this.model = undefined;
-      this.closed = true;
-    },
-
-    get value() {
-      return this.observer.value;
-    },
-
-    set value(value) {
-      this.observer.setValue(value);
-    },
-
-    reset: function() {
-      this.observer.reset();
-    }
-  };
-
-  Text.prototype.bind = function(name, model, path) {
+  Text.prototype.bind = function(name, observable) {
     if (name !== 'textContent')
-      return Node.prototype.bind.call(this, name, model, path);
+      return Node.prototype.bind.call(this, name, observable);
 
-    this.unbind(name);
-    return this.bindings[name] = new NodeBinding(this, 'data', model, path);
+    unbind(this, 'textContent');
+    updateText(this, observable.open(textBinding(this)));
+    return this.bindings.textContent = observable;
   }
 
-  function AttributeBinding(element, attributeName, model, path) {
-    this.conditional = attributeName[attributeName.length - 1] == '?';
-    if (this.conditional) {
-      element.removeAttribute(attributeName);
-      attributeName = attributeName.slice(0, -1);
+  function updateAttribute(el, name, conditional, value) {
+    if (conditional) {
+      if (value)
+        el.setAttribute(name, '');
+      else
+        el.removeAttribute(name);
+      return;
     }
 
-    NodeBinding.call(this, element, attributeName, model, path);
+    el.setAttribute(name, sanitizeValue(value));
   }
 
-  AttributeBinding.prototype = createObject({
-    __proto__: NodeBinding.prototype,
+  function attributeBinding(el, name, conditional) {
+    return function(value) {
+      updateAttribute(el, name, conditional, value);
+    };
+  }
 
-    valueChanged: function(value) {
-      if (this.conditional) {
-        if (value)
-          this.node.setAttribute(this.property, '');
-        else
-          this.node.removeAttribute(this.property);
-        return;
-      }
-
-      this.node.setAttribute(this.property, this.sanitizeBoundValue(value));
+  Element.prototype.bind = function(name, observable) {
+    var conditional = name[name.length - 1] == '?';
+    if (conditional) {
+      this.removeAttribute(name);
+      name = name.slice(0, -1);
     }
-  });
 
-  Element.prototype.bind = function(name, model, path) {
-    this.unbind(name);
-    return this.bindings[name] = new AttributeBinding(this, name, model, path);
+    unbind(this, name);
+
+    updateAttribute(this, name, conditional,
+        observable.open(attributeBinding(this, name, conditional)));
+
+    return this.bindings[name] = observable;
   };
 
   var checkboxEventType;
@@ -214,36 +185,44 @@
     }
   }
 
-  function InputBinding(node, property, model, path) {
-    NodeBinding.call(this, node, property, model, path);
-    this.eventType = getEventForInputType(this.node);
-    this.boundNodeValueChanged = this.nodeValueChanged.bind(this);
-    this.node.addEventListener(this.eventType, this.boundNodeValueChanged,
-                               true);
+  function updateInput(input, property, value, santizeFn) {
+    input[property] = (santizeFn || sanitizeValue)(value);
   }
 
-  InputBinding.prototype = createObject({
-    __proto__: NodeBinding.prototype,
-
-    nodeValueChanged: function() {
-      this.value = this.node[this.property];
-      this.reset();
-      this.postUpdateBinding();
-      Platform.performMicrotaskCheckpoint();
-    },
-
-    postUpdateBinding: function() {},
-
-    close: function() {
-      if (this.closed)
-        return;
-
-      this.node.removeEventListener(this.eventType,
-                                    this.boundNodeValueChanged,
-                                    true);
-      NodeBinding.prototype.close.call(this);
+  function inputBinding(input, property, santizeFn) {
+    return function(value) {
+      return updateInput(input, property, value, santizeFn);
     }
-  });
+  }
+
+  function noop() {}
+
+  function bindInputEvent(input, property, observable, postEventFn) {
+    var eventType = getEventForInputType(input);
+
+    function eventHandler() {
+      observable.setValue(input[property]);
+      observable.reset();
+      (postEventFn || noop)(input);
+      Platform.performMicrotaskCheckpoint();
+    }
+    input.addEventListener(eventType, eventHandler);
+
+    var capturedClose = observable.close;
+    observable.close = function() {
+      if (!capturedClose)
+        return;
+      input.removeEventListener(eventType, eventHandler);
+
+      observable.close = capturedClose;
+      observable.close();
+      capturedClose = undefined;
+    }
+  }
+
+  function booleanSanitize(value) {
+    return Boolean(value);
+  }
 
   // |element| is assumed to be an HTMLInputElement with |type| == 'radio'.
   // Returns an array containing all radio buttons other than |element| that
@@ -274,124 +253,123 @@
     }
   }
 
-  function CheckedBinding(element, model, path) {
-    InputBinding.call(this, element, 'checked', model, path);
+  function checkedPostEvent(input) {
+    // Only the radio button that is getting checked gets an event. We
+    // therefore find all the associated radio buttons and update their
+    // check binding manually.
+    if (input.tagName === 'INPUT' &&
+        input.type === 'radio') {
+      getAssociatedRadioButtons(input).forEach(function(radio) {
+        var checkedBinding = radio.bindings.checked;
+        if (checkedBinding) {
+          // Set the value directly to avoid an infinite call stack.
+          checkedBinding.setValue(false);
+        }
+      });
+    }
   }
 
-  CheckedBinding.prototype = createObject({
-    __proto__: InputBinding.prototype,
-
-    sanitizeBoundValue: function(value) {
-      return Boolean(value);
-    },
-
-    postUpdateBinding: function() {
-      // Only the radio button that is getting checked gets an event. We
-      // therefore find all the associated radio buttons and update their
-      // CheckedBinding manually.
-      if (this.node.tagName === 'INPUT' &&
-          this.node.type === 'radio') {
-        getAssociatedRadioButtons(this.node).forEach(function(radio) {
-          var checkedBinding = radio.bindings.checked;
-          if (checkedBinding) {
-            // Set the value directly to avoid an infinite call stack.
-            checkedBinding.value = false;
-          }
-        });
-      }
-    }
-  });
-
-  HTMLInputElement.prototype.bind = function(name, model, path) {
+  HTMLInputElement.prototype.bind = function(name, observable) {
     if (name !== 'value' && name !== 'checked')
-      return HTMLElement.prototype.bind.call(this, name, model, path);
+      return HTMLElement.prototype.bind.call(this, name, observable);
 
-    this.unbind(name);
+    unbind(this, name);
     this.removeAttribute(name);
-    return this.bindings[name] = name === 'value' ?
-        new InputBinding(this, 'value', model, path) :
-        new CheckedBinding(this, model, path);
+
+    var sanitizeFn = name == 'checked' ? booleanSanitize : sanitizeValue;
+    var postEventFn = name == 'checked' ? checkedPostEvent : noop;
+    bindInputEvent(this, name, observable, postEventFn);
+    updateInput(this, name,
+                observable.open(inputBinding(this, name, sanitizeFn)),
+                sanitizeFn);
+
+    return this.bindings[name] = observable;
   }
 
-  HTMLTextAreaElement.prototype.bind = function(name, model, path) {
+  HTMLTextAreaElement.prototype.bind = function(name, observable) {
     if (name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, model, path);
+      return HTMLElement.prototype.bind.call(this, name, observable);
 
-    this.unbind(name);
-    this.removeAttribute(name);
-    return this.bindings[name] = new InputBinding(this, name, model, path);
+    unbind(this, 'value');
+    this.removeAttribute('value');
+
+    bindInputEvent(this, 'value', observable);
+    updateInput(this, 'value',
+                observable.open(inputBinding(this, 'value', sanitizeValue)));
+
+    return this.bindings.value = observable;
   }
 
-  function OptionValueBinding(element, model, path) {
-    InputBinding.call(this, element, 'value', model, path);
-  }
-
-  OptionValueBinding.prototype = createObject({
-    __proto__: InputBinding.prototype,
-
-    valueChanged: function(value) {
-      var select = this.node.parentNode instanceof HTMLSelectElement ?
-          this.node.parentNode : undefined;
-      var selectBinding;
-      var oldValue;
-      if (select &&
-          select.bindings &&
-          select.bindings.value instanceof SelectBinding) {
-        selectBinding = select.bindings.value;
-        oldValue = select.value;
-      }
-
-      InputBinding.prototype.valueChanged.call(this, value);
-      if (selectBinding && !selectBinding.closed && select.value !== oldValue)
-        selectBinding.nodeValueChanged();
+  function updateOption(option, value) {
+    var parentNode = option.parentNode;;
+    var select;
+    if (parentNode instanceof HTMLSelectElement &&
+        parentNode.bindings &&
+        parentNode.bindings.value) {
+      select = parentNode;
+      var selectBinding = select.bindings.value;
+      var oldValue = select.value;
     }
-  });
 
-  HTMLOptionElement.prototype.bind = function(name, model, path) {
+    option.value = sanitizeValue(value);;
+
+    if (select && select.value != oldValue) {
+      selectBinding.setValue(select.value);
+      selectBinding.reset();
+      Platform.performMicrotaskCheckpoint();
+    }
+  }
+
+  function optionBinding(option) {
+    return function(value) {
+      updateOption(option, value);
+    }
+  }
+
+  HTMLOptionElement.prototype.bind = function(name, observable) {
     if (name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, model, path);
+      return HTMLElement.prototype.bind.call(this, name, observable);
 
-    this.unbind(name);
-    this.removeAttribute(name);
-    return this.bindings[name] = new OptionValueBinding(this, model, path);
+    unbind(this, 'value');
+    this.removeAttribute('value');
+
+    bindInputEvent(this, 'value', observable);
+    updateOption(this, observable.open(optionBinding(this)));
+    return this.bindings.value = observable;
   }
 
-  function SelectBinding(element, property, model, path) {
-    InputBinding.call(this, element, property, model, path);
+  function updateSelect(select, property, value, retries) {
+    select[property] = value;
+    if (!retries || select[property] == value)
+      return
+
+    // The binding may wish to bind to an <option> which has not yet been
+    // produced by a child <template>. Delay |retries| times.
+    ensureScheduled(function() {
+      updateSelect(select, property, value, retries - 1);
+    });
   }
 
-  SelectBinding.prototype = createObject({
-    __proto__: InputBinding.prototype,
-
-    valueChanged: function(value) {
-      this.node[this.property] = value;
-      if (this.node[this.property] == value)
-        return;
-
-      // The binding may wish to bind to an <option> which has not yet been
-      // produced by a child <template>. Delay a maximum of two times: once for
-      // each of <optgroup> and <option>
-      var maxRetries = 2;
-      var self = this;
-      function delaySetSelectedIndex() {
-        self.node[self.property] = value;
-        if (self.node[self.property] != value && maxRetries--)
-          ensureScheduled(delaySetSelectedIndex);
-      }
-      ensureScheduled(delaySetSelectedIndex);
+  function selectBinding(select, property) {
+    return function(value) {
+      updateSelect(select, property, value);
     }
-  });
+  }
 
-  HTMLSelectElement.prototype.bind = function(name, model, path) {
+  HTMLSelectElement.prototype.bind = function(name, observable) {
     if (name === 'selectedindex')
       name = 'selectedIndex';
 
     if (name !== 'selectedIndex' && name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, model, path);
+      return HTMLElement.prototype.bind.call(this, name, observable);
 
-    this.unbind(name);
+
+    unbind(this, name);
     this.removeAttribute(name);
-    return this.bindings[name] = new SelectBinding(this, name, model, path);
+
+    bindInputEvent(this, name, observable);
+    updateSelect(this, name, observable.open(selectBinding(this, name)), 2);
+    return this.bindings[name] = observable;
   }
 
   // TODO(rafaelw): We should polyfill a Microtask Promise and define it if it isn't.
@@ -408,7 +386,8 @@
       this.scheduled = [];
       this.scheduledIds = [];
       this.running = false;
-      this.observer = new PathObserver(this, 'value', this.run, this);
+      this.observer = new PathObserver(this, 'value');
+      this.observer.open(this.run, this);
     }
 
     Runner.prototype = {

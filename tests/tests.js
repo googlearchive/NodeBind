@@ -50,7 +50,7 @@ suite('Text bindings', function() {
   test('Basic', function() {
     var text = document.createTextNode('hi');
     var model = {a: 1};
-    text.bind('textContent', model, 'a');
+    text.bind('textContent', new PathObserver(model, 'a'));
     assert.strictEqual('1', text.data);
 
     model.a = 2;
@@ -66,16 +66,16 @@ suite('Text bindings', function() {
   });
 
   test('No Path', function() {
-    var text = document.createTextNode('hi');
+    var text = testDiv.appendChild(document.createTextNode('hi'));
     var model = 1;
-    text.bind('textContent', model);
+    text.bind('textContent', new PathObserver(model));
     assert.strictEqual('1', text.data);
   });
 
   test('Path unreachable', function() {
     var text = testDiv.appendChild(document.createTextNode('hi'));
     var model = {};
-    text.bind('textContent', model, 'a');
+    text.bind('textContent', new PathObserver(model, 'a'));
     assert.strictEqual(text.data, '');
   });
 
@@ -83,8 +83,7 @@ suite('Text bindings', function() {
     var text = document.createTextNode('');
     var model = {a: { b: { c: 1}}};
     var observer = new PathObserver(model, 'a.b.c');
-
-    text.bind('textContent', observer, 'value');
+    text.bind('textContent', observer);
     assert.strictEqual(3, Observer._allObserversCount);
     assert.strictEqual('1', text.data);
 
@@ -103,7 +102,7 @@ suite('Element attribute bindings', function() {
   test('Basic', function() {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    el.bind('foo', model, 'a');
+    el.bind('foo', new PathObserver(model, 'a'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('1', el.getAttribute('foo'));
 
@@ -131,7 +130,7 @@ suite('Element attribute bindings', function() {
   test('No path', function() {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = 1;
-    el.bind('foo', model);
+    el.bind('foo', new PathObserver(model));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('1', el.getAttribute('foo'));
   });
@@ -139,7 +138,7 @@ suite('Element attribute bindings', function() {
   test('Path unreachable', function() {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {};
-    el.bind('foo', model, 'bar');
+    el.bind('foo', new PathObserver(model, 'bar'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('', el.getAttribute('foo'));
   });
@@ -147,7 +146,7 @@ suite('Element attribute bindings', function() {
   test('Dashes', function() {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    el.bind('foo-bar', model, 'a');
+    el.bind('foo-bar', new PathObserver(model, 'a'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('1', el.getAttribute('foo-bar'));
 
@@ -159,8 +158,8 @@ suite('Element attribute bindings', function() {
   test('Element.id, Element.hidden?', function() {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {a: 1, b: 2};
-    element.bind('hidden?', model, 'a');
-    element.bind('id', model, 'b');
+    element.bind('hidden?', new PathObserver(model, 'a'));
+    element.bind('id', new PathObserver(model, 'b'));
 
     assert.isTrue(element.hasAttribute('hidden'));
     assert.strictEqual('', element.getAttribute('hidden'));
@@ -181,7 +180,7 @@ suite('Element attribute bindings', function() {
   test('Element.id - path unreachable', function() {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {};
-    element.bind('id', model, 'a');
+    element.bind('id', new PathObserver(model, 'a'));
     assert.strictEqual(element.id, '');
   });
 });
@@ -194,7 +193,7 @@ suite('Form Element Bindings', function() {
   function inputTextAreaValueTest(type) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = {x: 42};
-    el.bind('value', model, 'x');
+    el.bind('value', new PathObserver(model, 'x'));
     assert.strictEqual('42', el.value);
 
     model.x = 'Hi';
@@ -212,7 +211,7 @@ suite('Form Element Bindings', function() {
     dispatchEvent('input', el);
     assert.strictEqual('changed', model.x);
 
-    el.bind('value', model, 'x');
+    el.bind('value', new PathObserver(model, 'x'));
     model.x = null;
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('', el.value);
@@ -221,14 +220,14 @@ suite('Form Element Bindings', function() {
   function inputTextAreaNoPath(type) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = 42;
-    el.bind('value', model);
+    el.bind('value', new PathObserver(model));
     assert.strictEqual('42', el.value);
   }
 
   function inputTextAreaPathUnreachable(type) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = {};
-    el.bind('value', model, 'a');
+    el.bind('value', new PathObserver(model, 'a'));
     assert.strictEqual('', el.value);
   }
 
@@ -260,7 +259,7 @@ suite('Form Element Bindings', function() {
     var model = {val: 'ping'};
 
     var el = testDiv.appendChild(document.createElement('input'));
-    el.bind('value', model, 'val');
+    el.bind('value', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('ping', el.value);
 
@@ -277,7 +276,7 @@ suite('Form Element Bindings', function() {
       }
     };
 
-    el.bind('value', model, 'a.b.c');
+    el.bind('value', new PathObserver(model, 'a.b.c'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('ping', el.value);
 
@@ -310,7 +309,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(input);
     input.type = 'checkbox';
     var model = {x: true};
-    input.bind('checked', model, 'x');
+    input.bind('checked', new PathObserver(model, 'x'));
     assert.isTrue(input.checked);
 
     model.x = false;
@@ -331,7 +330,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(input);
     input.type = 'checkbox';
     var model = {};
-    input.bind('checked', model, 'x');
+    input.bind('checked', new PathObserver(model, 'x'));
     assert.isFalse(input.checked);
   });
 
@@ -341,7 +340,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', model, 'val');
+    el.bind('checked', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(true, el.checked);
 
@@ -374,7 +373,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', model, 'val');
+    el.bind('checked', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(true, el.checked);
 
@@ -394,7 +393,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', model, 'val');
+    el.bind('checked', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(true, el.checked);
 
@@ -412,7 +411,7 @@ suite('Form Element Bindings', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
     var model = {x: true};
-    input.bind('checked', model, 'x');
+    input.bind('checked', new PathObserver(model, 'x'));
     assert.isTrue(input.checked);
 
     model.x = false;
@@ -435,7 +434,7 @@ suite('Form Element Bindings', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
     var model = {};
-    input.bind('checked', model, 'x');
+    input.bind('checked', new PathObserver(model, 'x'));
     assert.isFalse(input.checked);
   });
 
@@ -448,22 +447,22 @@ suite('Form Element Bindings', function() {
     var el1 = container.appendChild(document.createElement('input'));
     el1.type = 'radio';
     el1.name = RADIO_GROUP_NAME;
-    el1.bind('checked', model, 'val1');
+    el1.bind('checked', new PathObserver(model, 'val1'));
 
     var el2 = container.appendChild(document.createElement('input'));
     el2.type = 'radio';
     el2.name = RADIO_GROUP_NAME;
-    el2.bind('checked', model, 'val2');
+    el2.bind('checked', new PathObserver(model, 'val2'));
 
     var el3 = container.appendChild(document.createElement('input'));
     el3.type = 'radio';
     el3.name = RADIO_GROUP_NAME;
-    el3.bind('checked', model, 'val3');
+    el3.bind('checked', new PathObserver(model, 'val3'));
 
     var el4 = container.appendChild(document.createElement('input'));
     el4.type = 'radio';
     el4.name = 'othergroup';
-    el4.bind('checked', model, 'val4');
+    el4.bind('checked', new PathObserver(model, 'val4'));
 
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(true, el1.checked);
@@ -519,22 +518,22 @@ suite('Form Element Bindings', function() {
     var el1 = form1.appendChild(document.createElement('input'));
     el1.type = 'radio';
     el1.name = RADIO_GROUP_NAME;
-    el1.bind('checked', model, 'val1');
+    el1.bind('checked', new PathObserver(model, 'val1'));
 
     var el2 = form1.appendChild(document.createElement('input'));
     el2.type = 'radio';
     el2.name = RADIO_GROUP_NAME;
-    el2.bind('checked', model, 'val2');
+    el2.bind('checked', new PathObserver(model, 'val2'));
 
     var el3 = form2.appendChild(document.createElement('input'));
     el3.type = 'radio';
     el3.name = RADIO_GROUP_NAME;
-    el3.bind('checked', model, 'val3');
+    el3.bind('checked', new PathObserver(model, 'val3'));
 
     var el4 = form2.appendChild(document.createElement('input'));
     el4.type = 'radio';
     el4.name = RADIO_GROUP_NAME;
-    el4.bind('checked', model, 'val4');
+    el4.bind('checked', new PathObserver(model, 'val4'));
 
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(true, el1.checked);
@@ -586,7 +585,7 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
       val: 2
     };
 
-    select.bind('selectedIndex', model, 'val');
+    select.bind('selectedIndex', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(2, select.selectedIndex);
 
@@ -607,7 +606,7 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
       val: 'foo'
     };
 
-    select.bind('selectedIndex', model, 'val');
+    select.bind('selectedIndex', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(0, select.selectedIndex);
   });
@@ -615,7 +614,7 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
   test('Option.value', function() {
     var option = testDiv.appendChild(document.createElement('option'));
     var model = {x: 42};
-    option.bind('value', model, 'x');
+    option.bind('value', new PathObserver(model, 'x'));
     assert.strictEqual('42', option.value);
 
     model.x = 'Hi';
@@ -634,7 +633,7 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
 
     var model = {};
 
-    select.bind('selectedIndex', model, 'val');
+    select.bind('selectedIndex', new PathObserver(model, 'val'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual(0, select.selectedIndex);
   });
@@ -653,11 +652,11 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
       selected: 'b'
     };
 
-    option0.bind('value', model, 'opt0');
-    option1.bind('value', model, 'opt1');
-    option2.bind('value', model, 'opt2');
+    option0.bind('value', new PathObserver(model, 'opt0'));
+    option1.bind('value', new PathObserver(model, 'opt1'));
+    option2.bind('value', new PathObserver(model, 'opt2'));
 
-    select.bind('value', model, 'selected');
+    select.bind('value', new PathObserver(model, 'selected'));
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('b', select.value);
 
