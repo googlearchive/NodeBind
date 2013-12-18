@@ -103,13 +103,16 @@
     };
   }
 
-  Text.prototype.bind = function(name, observable) {
+  Text.prototype.bind = function(name, value, oneTime) {
     if (name !== 'textContent')
-      return Node.prototype.bind.call(this, name, observable);
+      return Node.prototype.bind.call(this, name, value, oneTime);
+
+    if (oneTime)
+      return updateText(this, value);
 
     unbind(this, 'textContent');
-    updateText(this, observable.open(textBinding(this)));
-    return this.bindings.textContent = observable;
+    updateText(this, value.open(textBinding(this)));
+    return this.bindings.textContent = value;
   }
 
   function updateAttribute(el, name, conditional, value) {
@@ -130,19 +133,21 @@
     };
   }
 
-  Element.prototype.bind = function(name, observable) {
+  Element.prototype.bind = function(name, value, oneTime) {
     var conditional = name[name.length - 1] == '?';
     if (conditional) {
       this.removeAttribute(name);
       name = name.slice(0, -1);
     }
 
+    if (oneTime)
+      return updateAttribute(this, name, conditional, value);
+
     unbind(this, name);
-
     updateAttribute(this, name, conditional,
-        observable.open(attributeBinding(this, name, conditional)));
+        value.open(attributeBinding(this, name, conditional)));
 
-    return this.bindings[name] = observable;
+    return this.bindings[name] = value;
   };
 
   var checkboxEventType;
@@ -269,35 +274,42 @@
     }
   }
 
-  HTMLInputElement.prototype.bind = function(name, observable) {
+  HTMLInputElement.prototype.bind = function(name, value, oneTime) {
     if (name !== 'value' && name !== 'checked')
-      return HTMLElement.prototype.bind.call(this, name, observable);
+      return HTMLElement.prototype.bind.call(this, name, value, oneTime);
 
-    unbind(this, name);
+
     this.removeAttribute(name);
-
     var sanitizeFn = name == 'checked' ? booleanSanitize : sanitizeValue;
     var postEventFn = name == 'checked' ? checkedPostEvent : noop;
-    bindInputEvent(this, name, observable, postEventFn);
+
+    if (oneTime)
+      return updateInput(this, name, value, sanitizeFn);
+
+    unbind(this, name);
+    bindInputEvent(this, name, value, postEventFn);
     updateInput(this, name,
-                observable.open(inputBinding(this, name, sanitizeFn)),
+                value.open(inputBinding(this, name, sanitizeFn)),
                 sanitizeFn);
 
-    return this.bindings[name] = observable;
+    return this.bindings[name] = value;
   }
 
-  HTMLTextAreaElement.prototype.bind = function(name, observable) {
+  HTMLTextAreaElement.prototype.bind = function(name, value, oneTime) {
     if (name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, observable);
+      return HTMLElement.prototype.bind.call(this, name, value, oneTime);
 
-    unbind(this, 'value');
     this.removeAttribute('value');
 
-    bindInputEvent(this, 'value', observable);
-    updateInput(this, 'value',
-                observable.open(inputBinding(this, 'value', sanitizeValue)));
+    if (oneTime)
+      return updateInput(this, 'value', value);
 
-    return this.bindings.value = observable;
+    unbind(this, 'value');
+    bindInputEvent(this, 'value', value);
+    updateInput(this, 'value',
+                value.open(inputBinding(this, 'value', sanitizeValue)));
+
+    return this.bindings.value = value;
   }
 
   function updateOption(option, value) {
@@ -326,16 +338,19 @@
     }
   }
 
-  HTMLOptionElement.prototype.bind = function(name, observable) {
+  HTMLOptionElement.prototype.bind = function(name, value, oneTime) {
     if (name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, observable);
+      return HTMLElement.prototype.bind.call(this, name, value, oneTime);
 
-    unbind(this, 'value');
     this.removeAttribute('value');
 
-    bindInputEvent(this, 'value', observable);
-    updateOption(this, observable.open(optionBinding(this)));
-    return this.bindings.value = observable;
+    if (oneTime)
+      return updateOption(this, value);
+
+    unbind(this, 'value');
+    bindInputEvent(this, 'value', value);
+    updateOption(this, value.open(optionBinding(this)));
+    return this.bindings.value = value;
   }
 
   function updateSelect(select, property, value, retries) {
@@ -356,20 +371,22 @@
     }
   }
 
-  HTMLSelectElement.prototype.bind = function(name, observable) {
+  HTMLSelectElement.prototype.bind = function(name, value, oneTime) {
     if (name === 'selectedindex')
       name = 'selectedIndex';
 
     if (name !== 'selectedIndex' && name !== 'value')
-      return HTMLElement.prototype.bind.call(this, name, observable);
+      return HTMLElement.prototype.bind.call(this, name, value, oneTime);
 
-
-    unbind(this, name);
     this.removeAttribute(name);
 
-    bindInputEvent(this, name, observable);
-    updateSelect(this, name, observable.open(selectBinding(this, name)), 2);
-    return this.bindings[name] = observable;
+    if (oneTime)
+      return updateSelect(this, name, value);
+
+    unbind(this, name);
+    bindInputEvent(this, name, value);
+    updateSelect(this, name, value.open(selectBinding(this, name)), 2);
+    return this.bindings[name] = value;
   }
 
   // TODO(rafaelw): We should polyfill a Microtask Promise and define it if it isn't.

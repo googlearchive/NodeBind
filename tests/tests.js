@@ -65,6 +65,12 @@ suite('Text bindings', function() {
     // TODO(rafaelw): Throw on binding to unavailable property?
   });
 
+  test('oneTime', function() {
+    var text = document.createTextNode('hi');
+    text.bind('textContent', 1, true);
+    assert.strictEqual('1', text.data);
+  });
+
   test('No Path', function() {
     var text = testDiv.appendChild(document.createTextNode('hi'));
     var model = 1;
@@ -125,6 +131,13 @@ suite('Element attribute bindings', function() {
     model.a = undefined;
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('', el.getAttribute('foo'));
+  });
+
+  test('oneTime', function() {
+    var el = testDiv.appendChild(document.createElement('div'));
+    var model = {a: '1'};
+    el.bind('foo', 1, true);
+    assert.strictEqual('1', el.getAttribute('foo'));
   });
 
   test('No path', function() {
@@ -235,6 +248,12 @@ suite('Form Element Bindings', function() {
     inputTextAreaValueTest('input');
   });
 
+  test('Input.value - oneTime', function() {
+    var el = testDiv.appendChild(document.createElement('input'));
+    el.bind('value', 42, true);
+    assert.strictEqual('42', el.value);
+  });
+
   test('Input.value - no path', function() {
     inputTextAreaNoPath('input');
   });
@@ -245,6 +264,12 @@ suite('Form Element Bindings', function() {
 
   test('TextArea.value', function() {
     inputTextAreaValueTest('textarea');
+  });
+
+  test('TextArea.value - oneTime', function() {
+    var el = testDiv.appendChild(document.createElement('textarea'));
+    el.bind('value', 42, true);
+    assert.strictEqual('42', el.value);
   });
 
   test('TextArea.value - no path', function() {
@@ -323,6 +348,14 @@ suite('Form Element Bindings', function() {
 
     input.click();
     assert.isFalse(model.x);
+  });
+
+  test('(Checkbox)Input.checked - oneTime', function() {
+    var input = testDiv.appendChild(document.createElement('input'));
+    testDiv.appendChild(input);
+    input.type = 'checkbox';
+    input.bind('checked', true, true);
+    assert.isTrue(input.checked);
   });
 
   test('(Checkbox)Input.checked - path unreachable', function() {
@@ -428,6 +461,13 @@ suite('Form Element Bindings', function() {
     input.checked = false;
     dispatchEvent('change', input);
     assert.isTrue(model.x);
+  });
+
+  test('(Radio)Input.checked - oneTime', function() {
+    var input = testDiv.appendChild(document.createElement('input'));
+    input.type = 'radio';
+    input.bind('checked', true, true);
+    assert.isTrue(input.checked);
   });
 
   test('(Radio)Input.checked - path unreachable', function() {
@@ -594,6 +634,18 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     assert.strictEqual(1, model.val);
   });
 
+  test('Select.selectedIndex - oneTime', function() {
+    var select = testDiv.appendChild(document.createElement('select'));
+    testDiv.appendChild(select);
+    var option0 = select.appendChild(document.createElement('option'));
+    var option1 = select.appendChild(document.createElement('option'));
+    var option2 = select.appendChild(document.createElement('option'));
+
+    select.bind('selectedIndex', 2, true);
+    Platform.performMicrotaskCheckpoint();
+    assert.strictEqual(2, select.selectedIndex);
+  });
+
   test('Select.selectedIndex - path NaN', function() {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
@@ -621,6 +673,12 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     assert.strictEqual('42', option.value);
     Platform.performMicrotaskCheckpoint();
     assert.strictEqual('Hi', option.value);
+  });
+
+  test('Option.value - oneTime', function() {
+    var option = testDiv.appendChild(document.createElement('option'));
+    option.bind('value', 42, true);
+    assert.strictEqual('42', option.value);
   });
 
   test('Select.selectedIndex - path unreachable', function() {
