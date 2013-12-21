@@ -190,6 +190,23 @@ suite('Element attribute bindings', function() {
     assert.strictEqual('x', element.id);
   });
 
+  test('Element.hidden?!', function() {
+    var element = testDiv.appendChild(document.createElement('div'));
+    var model = {visible:false};
+    element.bind('hidden?!', new PathObserver(model, 'visible'));
+
+    assert.isTrue(element.hasAttribute('hidden'));
+    assert.strictEqual('', element.getAttribute('hidden'));
+
+    model.visible = true;
+    Platform.performMicrotaskCheckpoint();
+    assert.isFalse(element.hasAttribute('hidden'));
+
+    model.visible = 'foo';
+    Platform.performMicrotaskCheckpoint();
+    assert.isFalse(element.hasAttribute('hidden'));
+  });
+
   test('Element.id - path unreachable', function() {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {};
