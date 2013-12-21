@@ -115,9 +115,16 @@
     return this.bindings.textContent = value;
   }
 
-  function updateAttribute(el, name, conditional, value) {
+  function updateAttribute(el, name, conditional, negativeConditional, value) {
     if (conditional) {
       if (value)
+        el.setAttribute(name, '');
+      else
+        el.removeAttribute(name);
+      return;
+    }
+    if (negativeConditional) {
+      if (!value)
         el.setAttribute(name, '');
       else
         el.removeAttribute(name);
@@ -127,9 +134,9 @@
     el.setAttribute(name, sanitizeValue(value));
   }
 
-  function attributeBinding(el, name, conditional) {
+  function attributeBinding(el, name, conditional, negativeConditional) {
     return function(value) {
-      updateAttribute(el, name, conditional, value);
+      updateAttribute(el, name, conditional, negativeConditional,value);
     };
   }
 
@@ -140,12 +147,18 @@
       name = name.slice(0, -1);
     }
 
+    var negativeConditional = name.substr(-2) == '?!';
+    if (negativeConditional) {
+        this.removeAttribute(name);
+        name = name.slice(0, -2);
+    }
+
     if (oneTime)
-      return updateAttribute(this, name, conditional, value);
+      return updateAttribute(this, name, conditional, negativeConditional, value);
 
     unbind(this, name);
-    updateAttribute(this, name, conditional,
-        value.open(attributeBinding(this, name, conditional)));
+    updateAttribute(this, name, conditional, negativeConditional,
+        value.open(attributeBinding(this, name, conditional, negativeConditional)));
 
     return this.bindings[name] = value;
   };
