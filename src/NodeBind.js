@@ -90,7 +90,7 @@
   };
 
   function sanitizeValue(value) {
-    return value === undefined || value === null ? '' : value;
+    return value == null ? '' : value;
   }
 
   function updateText(node, value) {
@@ -315,15 +315,17 @@
   function updateOption(option, value) {
     var parentNode = option.parentNode;;
     var select;
+    var selectBinding;
+    var oldValue;
     if (parentNode instanceof HTMLSelectElement &&
         parentNode.bindings &&
         parentNode.bindings.value) {
       select = parentNode;
-      var selectBinding = select.bindings.value;
-      var oldValue = select.value;
+      selectBinding = select.bindings.value;
+      oldValue = select.value;
     }
 
-    option.value = sanitizeValue(value);;
+    option.value = sanitizeValue(value);
 
     if (select && select.value != oldValue) {
       selectBinding.setValue(select.value);
