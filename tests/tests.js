@@ -198,6 +198,66 @@ suite('Element attribute bindings', function() {
   });
 });
 
+suite('Element event bindings', function() {
+  test('Basic', function() {
+    var element = testDiv.appendChild(document.createElement('div'));
+    var fooCount = 0;
+    var barCount = 0;
+    var model = {
+      fooHandler: function() {
+        fooCount++;
+      }
+    };
+
+    var binding = element.bind('on-foo', new PathObserver(model, 'fooHandler'));
+    Platform.performMicrotaskCheckpoint();
+    dispatchEvent('foo', element);
+    assert.strictEqual(fooCount, 1);
+    assert.strictEqual(barCount, 0);
+
+    model.fooHandler = function() {
+      barCount++;
+    }
+
+    Platform.performMicrotaskCheckpoint();
+    dispatchEvent('foo', element);
+    assert.strictEqual(fooCount, 1);
+    assert.strictEqual(barCount, 1);
+
+    binding.close();
+    dispatchEvent('foo', element);
+    assert.strictEqual(fooCount, 1);
+    assert.strictEqual(barCount, 1);
+
+  });
+
+  test('Basic - oneTime', function() {
+    var element = testDiv.appendChild(document.createElement('div'));
+    var fooCount = 0;
+    var barCount = 0;
+    var model = {
+      fooHandler: function() {
+        fooCount++;
+      }
+    };
+
+    var binding = element.bind('on-foo', model.fooHandler, true);
+    Platform.performMicrotaskCheckpoint();
+    dispatchEvent('foo', element);
+    assert.strictEqual(fooCount, 1);
+    assert.strictEqual(barCount, 0);
+
+    model.fooHandler = function() {
+      barCount++;
+    }
+
+    Platform.performMicrotaskCheckpoint();
+    dispatchEvent('foo', element);
+    assert.strictEqual(fooCount, 2);
+    assert.strictEqual(barCount, 0);
+  });
+});
+
 suite('Form Element Bindings', function() {
 
   setup(doSetup);
