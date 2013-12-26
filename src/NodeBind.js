@@ -394,24 +394,6 @@
     return this.bindings.value = value;
   }
 
-  function updateSelect(select, property, value, retries) {
-    select[property] = value;
-    if (!retries || select[property] == value)
-      return
-
-    // The binding may wish to bind to an <option> which has not yet been
-    // produced by a child <template>. Delay |retries| times.
-    ensureScheduled(function() {
-      updateSelect(select, property, value, retries - 1);
-    });
-  }
-
-  function selectBinding(select, property) {
-    return function(value) {
-      updateSelect(select, property, value);
-    }
-  }
-
   HTMLSelectElement.prototype.bind = function(name, value, oneTime) {
     if (name === 'selectedindex')
       name = 'selectedIndex';
@@ -422,87 +404,12 @@
     this.removeAttribute(name);
 
     if (oneTime)
-      return updateSelect(this, name, value);
+      return updateInput(this, name, value);
 
     unbind(this, name);
     bindInputEvent(this, name, value);
-    updateSelect(this, name, value.open(selectBinding(this, name)), 2);
+    updateInput(this, name,
+                value.open(inputBinding(this, name)));
     return this.bindings[name] = value;
   }
-
-  // TODO(rafaelw): We should polyfill a Microtask Promise and define it if it isn't.
-  var ensureScheduled = function() {
-    // We need to ping-pong between two Runners in order for the tests to
-    // simulate proper end-of-microtask behavior for Object.observe. Without
-    // this, we'll continue delivering to a single observer without allowing
-    // other observers in the same microtask to make progress.
-
-    function Runner(nextRunner) {
-      this.nextRunner = nextRunner;
-      this.value = false;
-      this.lastValue = this.value;
-      this.scheduled = [];
-      this.scheduledIds = [];
-      this.running = false;
-      this.observer = new PathObserver(this, 'value');
-      this.observer.open(this.run, this);
-    }
-
-    Runner.prototype = {
-      schedule: function(async, id) {
-        if (this.scheduledIds[id])
-          return;
-
-        if (this.running)
-          return this.nextRunner.schedule(async, id);
-
-        this.scheduledIds[id] = true;
-        this.scheduled.push(async);
-
-        if (this.lastValue !== this.value)
-          return;
-
-        this.value = !this.value;
-      },
-
-      run: function() {
-        this.running = true;
-
-        for (var i = 0; i < this.scheduled.length; i++) {
-          var async = this.scheduled[i];
-          var id = async[idExpando];
-          this.scheduledIds[id] = false;
-
-          if (typeof async === 'function')
-            async();
-          else
-            async.resolve();
-        }
-
-        this.scheduled = [];
-        this.scheduledIds = [];
-        this.lastValue = this.value;
-
-        this.running = false;
-      }
-    }
-
-    var runner = new Runner(new Runner());
-
-    var nextId = 1;
-    var idExpando = '__scheduledId__';
-
-    function ensureScheduled(async) {
-      var id = async[idExpando];
-      if (!async[idExpando]) {
-        id = nextId++;
-        async[idExpando] = id;
-      }
-
-      runner.schedule(async, id);
-    }
-
-    return ensureScheduled;
-  }();
-
 })(this);

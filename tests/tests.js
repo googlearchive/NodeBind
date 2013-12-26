@@ -32,7 +32,7 @@ function doTeardown() {
   document.body.removeChild(testDiv);
   unbindAll(testDiv);
   Platform.performMicrotaskCheckpoint();
-  assert.strictEqual(2, Observer._allObserversCount);
+  assert.strictEqual(0, Observer._allObserversCount);
 }
 
 function dispatchEvent(type, target) {
@@ -90,7 +90,7 @@ suite('Text bindings', function() {
     var model = {a: { b: { c: 1}}};
     var observer = new PathObserver(model, 'a.b.c');
     text.bind('textContent', observer);
-    assert.strictEqual(3, Observer._allObserversCount);
+    assert.strictEqual(1, Observer._allObserversCount);
     assert.strictEqual('1', text.data);
 
     model.a.b.c = 2;
