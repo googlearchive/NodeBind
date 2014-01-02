@@ -680,8 +680,10 @@ suite('Form Element Bindings', function() {
   });
 
   test('(Radio)Input.checked 2 - ShadowRoot', function(done) {
-    if (!HTMLElement.prototype.webkitCreateShadowRoot)
+    if (!HTMLElement.prototype.webkitCreateShadowRoot) {
+      done();
       return;
+    }
 
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
@@ -750,8 +752,10 @@ suite('Form Element Bindings', function() {
   });
 
   test('(Radio)Input.checked - multiple forms - ShadowRoot', function(done) {
-    if (!HTMLElement.prototype.webkitCreateShadowRoot)
+    if (!HTMLElement.prototype.webkitCreateShadowRoot) {
+      done();
       return;
+    }
 
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
