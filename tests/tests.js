@@ -213,13 +213,14 @@ suite('Element attribute bindings', function() {
     assert.strictEqual('2', element.id);
 
     model.a = null;
-    Platform.performMicrotaskCheckpoint();
-    assert.isFalse(element.hasAttribute('hidden'));
-
-    model.a = 'foo';
-    model.b = 'x';
 
     then(function() {
+      assert.isFalse(element.hasAttribute('hidden'));
+
+      model.a = 'foo';
+      model.b = 'x';
+
+    }).then(function() {
       assert.isTrue(element.hasAttribute('hidden'));
       assert.strictEqual('', element.getAttribute('hidden'));
       assert.strictEqual('x', element.id);
