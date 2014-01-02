@@ -35,6 +35,19 @@ function doTeardown() {
   assert.strictEqual(0, Observer._allObserversCount);
 }
 
+function then(fn) {
+  setTimeout(function() {
+    Platform.performMicrotaskCheckpoint();
+    fn();
+  }, 0);
+
+  return {
+    then: function(next) {
+      return then(next);
+    }
+  };
+}
+
 function dispatchEvent(type, target) {
   var event = document.createEvent('Event');
   event.initEvent(type, true, false);
@@ -47,22 +60,23 @@ suite('Text bindings', function() {
   setup(doSetup);
   teardown(doTeardown);
 
-  test('Basic', function() {
+  test('Basic', function(done) {
     var text = document.createTextNode('hi');
     var model = {a: 1};
     text.bind('textContent', new PathObserver(model, 'a'));
     assert.strictEqual('1', text.data);
 
     model.a = 2;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('2', text.data);
+    then(function() {
+      assert.strictEqual('2', text.data);
+      text.unbind('textContent');
+      model.a = 3;
+    }).then(function() {
+      // TODO(rafaelw): Throw on binding to unavailable property?
+      assert.strictEqual('2', text.data);
 
-    text.unbind('textContent');
-    model.a = 3;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('2', text.data);
-
-    // TODO(rafaelw): Throw on binding to unavailable property?
+      done();
+    });
   });
 
   test('oneTime', function() {
@@ -85,7 +99,7 @@ suite('Text bindings', function() {
     assert.strictEqual(text.data, '');
   });
 
-  test('Observer is Model', function() {
+  test('Observer is Model', function(done) {
     var text = document.createTextNode('');
     var model = {a: { b: { c: 1}}};
     var observer = new PathObserver(model, 'a.b.c');
@@ -94,9 +108,13 @@ suite('Text bindings', function() {
     assert.strictEqual('1', text.data);
 
     model.a.b.c = 2;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('2', text.data);
-    text.unbind('textContent');
+
+    then(function() {
+      assert.strictEqual('2', text.data);
+      text.unbind('textContent');
+
+      done();
+    });
   });
 });
 
@@ -105,32 +123,36 @@ suite('Element attribute bindings', function() {
   setup(doSetup);
   teardown(doTeardown);
 
-  test('Basic', function() {
+  test('Basic', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
     el.bind('foo', new PathObserver(model, 'a'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('1', el.getAttribute('foo'));
 
-    model.a = '2';
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('2', el.getAttribute('foo'));
+    then(function() {
+      assert.strictEqual('1', el.getAttribute('foo'));
+      model.a = '2';
 
-    model.a = 232.2;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('232.2', el.getAttribute('foo'));
+    }).then(function() {
+      assert.strictEqual('2', el.getAttribute('foo'));
+      model.a = 232.2;
 
-    model.a = 232;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('232', el.getAttribute('foo'));
+    }).then(function() {
+      assert.strictEqual('232.2', el.getAttribute('foo'));
+      model.a = 232;
 
-    model.a = null;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.getAttribute('foo'));
+    }).then(function() {
+      assert.strictEqual('232', el.getAttribute('foo'));
+      model.a = null;
 
-    model.a = undefined;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.getAttribute('foo'));
+    }).then(function() {
+      assert.strictEqual('', el.getAttribute('foo'));
+      model.a = undefined;
+
+    }).then(function() {
+      assert.strictEqual('', el.getAttribute('foo'));
+
+      done();
+    });
   });
 
   test('oneTime', function() {
@@ -140,35 +162,47 @@ suite('Element attribute bindings', function() {
     assert.strictEqual('1', el.getAttribute('foo'));
   });
 
-  test('No path', function() {
+  test('No path', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = 1;
     el.bind('foo', new PathObserver(model));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('1', el.getAttribute('foo'));
+
+    then(function() {
+      assert.strictEqual('1', el.getAttribute('foo'));
+
+      done();
+    });
   });
 
-  test('Path unreachable', function() {
+  test('Path unreachable', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {};
     el.bind('foo', new PathObserver(model, 'bar'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.getAttribute('foo'));
+
+    then(function() {
+      assert.strictEqual('', el.getAttribute('foo'));
+
+      done();
+    });
   });
 
-  test('Dashes', function() {
+  test('Dashes', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
     el.bind('foo-bar', new PathObserver(model, 'a'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('1', el.getAttribute('foo-bar'));
 
-    model.a = '2';
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('2', el.getAttribute('foo-bar'));
+    then(function() {
+      assert.strictEqual('1', el.getAttribute('foo-bar'));
+      model.a = '2';
+
+    }).then(function() {
+      assert.strictEqual('2', el.getAttribute('foo-bar'));
+
+      done();
+    });
   });
 
-  test('Element.id, Element.hidden?', function() {
+  test('Element.id, Element.hidden?', function(done) {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {a: 1, b: 2};
     element.bind('hidden?', new PathObserver(model, 'a'));
@@ -184,10 +218,14 @@ suite('Element attribute bindings', function() {
 
     model.a = 'foo';
     model.b = 'x';
-    Platform.performMicrotaskCheckpoint();
-    assert.isTrue(element.hasAttribute('hidden'));
-    assert.strictEqual('', element.getAttribute('hidden'));
-    assert.strictEqual('x', element.id);
+
+    then(function() {
+      assert.isTrue(element.hasAttribute('hidden'));
+      assert.strictEqual('', element.getAttribute('hidden'));
+      assert.strictEqual('x', element.id);
+
+      done();
+    });
   });
 
   test('Element.id - path unreachable', function() {
@@ -199,7 +237,7 @@ suite('Element attribute bindings', function() {
 });
 
 suite('Element event bindings', function() {
-  test('Basic', function() {
+  test('Basic', function(done) {
     var element = testDiv.appendChild(document.createElement('div'));
     var fooCount = 0;
     var barCount = 0;
@@ -210,28 +248,31 @@ suite('Element event bindings', function() {
     };
 
     var binding = element.bind('on-foo', new PathObserver(model, 'fooHandler'));
-    Platform.performMicrotaskCheckpoint();
-    dispatchEvent('foo', element);
-    assert.strictEqual(fooCount, 1);
-    assert.strictEqual(barCount, 0);
 
-    model.fooHandler = function() {
-      barCount++;
-    }
+    then(function() {
+      dispatchEvent('foo', element);
+      assert.strictEqual(fooCount, 1);
+      assert.strictEqual(barCount, 0);
 
-    Platform.performMicrotaskCheckpoint();
-    dispatchEvent('foo', element);
-    assert.strictEqual(fooCount, 1);
-    assert.strictEqual(barCount, 1);
+      model.fooHandler = function() {
+        barCount++;
+      }
 
-    binding.close();
-    dispatchEvent('foo', element);
-    assert.strictEqual(fooCount, 1);
-    assert.strictEqual(barCount, 1);
+    }).then(function() {
+      dispatchEvent('foo', element);
+      assert.strictEqual(fooCount, 1);
+      assert.strictEqual(barCount, 1);
 
+      binding.close();
+      dispatchEvent('foo', element);
+      assert.strictEqual(fooCount, 1);
+      assert.strictEqual(barCount, 1);
+
+      done();
+    });
   });
 
-  test('Basic - oneTime', function() {
+  test('Basic - oneTime', function(done) {
     var element = testDiv.appendChild(document.createElement('div'));
     var fooCount = 0;
     var barCount = 0;
@@ -242,19 +283,23 @@ suite('Element event bindings', function() {
     };
 
     var binding = element.bind('on-foo', model.fooHandler, true);
-    Platform.performMicrotaskCheckpoint();
-    dispatchEvent('foo', element);
-    assert.strictEqual(fooCount, 1);
-    assert.strictEqual(barCount, 0);
 
-    model.fooHandler = function() {
-      barCount++;
-    }
+    then(function() {
+      dispatchEvent('foo', element);
+      assert.strictEqual(fooCount, 1);
+      assert.strictEqual(barCount, 0);
 
-    Platform.performMicrotaskCheckpoint();
-    dispatchEvent('foo', element);
-    assert.strictEqual(fooCount, 2);
-    assert.strictEqual(barCount, 0);
+      model.fooHandler = function() {
+        barCount++;
+      }
+
+    }).then(function() {
+      dispatchEvent('foo', element);
+      assert.strictEqual(fooCount, 2);
+      assert.strictEqual(barCount, 0);
+
+      done();
+    });
   });
 });
 
@@ -263,7 +308,7 @@ suite('Form Element Bindings', function() {
   setup(doSetup);
   teardown(doTeardown);
 
-  function inputTextAreaValueTest(type) {
+  function inputTextAreaValueTest(type, done) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = {x: 42};
     el.bind('value', new PathObserver(model, 'x'));
@@ -271,23 +316,27 @@ suite('Form Element Bindings', function() {
 
     model.x = 'Hi';
     assert.strictEqual('42', el.value);
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('Hi', el.value);
 
-    el.value = 'changed';
-    dispatchEvent('input', el);
-    assert.strictEqual('changed', model.x);
+    then(function() {
+      assert.strictEqual('Hi', el.value);
 
-    el.unbind('value');
+      el.value = 'changed';
+      dispatchEvent('input', el);
+      assert.strictEqual('changed', model.x);
 
-    el.value = 'changed again';
-    dispatchEvent('input', el);
-    assert.strictEqual('changed', model.x);
+      el.unbind('value');
 
-    el.bind('value', new PathObserver(model, 'x'));
-    model.x = null;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.value);
+      el.value = 'changed again';
+      dispatchEvent('input', el);
+      assert.strictEqual('changed', model.x);
+
+      el.bind('value', new PathObserver(model, 'x'));
+      model.x = null;
+    }).then(function() {
+      assert.strictEqual('', el.value);
+
+      done();
+    });
   }
 
   function inputTextAreaNoPath(type) {
@@ -304,8 +353,8 @@ suite('Form Element Bindings', function() {
     assert.strictEqual('', el.value);
   }
 
-  test('Input.value', function() {
-    inputTextAreaValueTest('input');
+  test('Input.value', function(done) {
+    inputTextAreaValueTest('input', done);
   });
 
   test('Input.value - oneTime', function() {
@@ -322,8 +371,8 @@ suite('Form Element Bindings', function() {
     inputTextAreaPathUnreachable('input');
   });
 
-  test('TextArea.value', function() {
-    inputTextAreaValueTest('textarea');
+  test('TextArea.value', function(done) {
+    inputTextAreaValueTest('textarea', done);
   });
 
   test('TextArea.value - oneTime', function() {
@@ -340,56 +389,63 @@ suite('Form Element Bindings', function() {
     inputTextAreaPathUnreachable('textarea');
   });
 
-  test('Input.value - user value rejected', function() {
+  test('Input.value - user value rejected', function(done) {
     var model = {val: 'ping'};
 
     var el = testDiv.appendChild(document.createElement('input'));
     el.bind('value', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('ping', el.value);
 
-    el.value = 'pong';
-    dispatchEvent('input', el);
-    assert.strictEqual('pong', model.val);
+    then(function() {
+      assert.strictEqual('ping', el.value);
 
-    // Try a deep path.
-    model = {
-      a: {
-        b: {
-          c: 'ping'
+      el.value = 'pong';
+      dispatchEvent('input', el);
+      assert.strictEqual('pong', model.val);
+
+      // Try a deep path.
+      model = {
+        a: {
+          b: {
+            c: 'ping'
+          }
         }
-      }
-    };
+      };
 
-    el.bind('value', new PathObserver(model, 'a.b.c'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('ping', el.value);
+      el.bind('value', new PathObserver(model, 'a.b.c'));
 
-    el.value = 'pong';
-    dispatchEvent('input', el);
-    assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
+    }).then(function() {
+      assert.strictEqual('ping', el.value);
 
-    // Start with the model property being absent.
-    delete model.a.b.c;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.value);
+      el.value = 'pong';
+      dispatchEvent('input', el);
+      assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
 
-    el.value = 'pong';
-    dispatchEvent('input', el);
-    assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
-    Platform.performMicrotaskCheckpoint();
+      // Start with the model property being absent.
+      delete model.a.b.c;
 
-    // Model property unreachable (and unsettable).
-    delete model.a.b;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('', el.value);
+    }).then(function() {
+      assert.strictEqual('', el.value);
 
-    el.value = 'pong';
-    dispatchEvent('input', el);
-    assert.strictEqual(undefined, Path.get('a.b.c').getValueFrom(model));
+      el.value = 'pong';
+      dispatchEvent('input', el);
+      assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
+
+    }).then(function() {
+      // Model property unreachable (and unsettable).
+      delete model.a.b;
+
+    }).then(function() {
+      assert.strictEqual('', el.value);
+
+      el.value = 'pong';
+      dispatchEvent('input', el);
+      assert.strictEqual(undefined, Path.get('a.b.c').getValueFrom(model));
+
+      done();
+    });
   });
 
-  test('(Checkbox)Input.checked', function() {
+  test('(Checkbox)Input.checked', function(done) {
     var input = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(input);
     input.type = 'checkbox';
@@ -399,15 +455,19 @@ suite('Form Element Bindings', function() {
 
     model.x = false;
     assert.isTrue(input.checked);
-    Platform.performMicrotaskCheckpoint();
-    assert.isFalse(input.checked);
 
-    input.click();
-    assert.isTrue(model.x);
-    Platform.performMicrotaskCheckpoint();
+    then(function() {
+      assert.isFalse(input.checked);
 
-    input.click();
-    assert.isFalse(model.x);
+      input.click();
+      assert.isTrue(model.x);
+
+    }).then(function() {
+      input.click();
+      assert.isFalse(model.x);
+
+      done();
+    });
   });
 
   test('(Checkbox)Input.checked - oneTime', function() {
@@ -427,80 +487,93 @@ suite('Form Element Bindings', function() {
     assert.isFalse(input.checked);
   });
 
-  test('(Checkbox)Input.checked 2', function() {
+  test('(Checkbox)Input.checked 2', function(done) {
     var model = {val: true};
 
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
     el.bind('checked', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(true, el.checked);
 
-    model.val = false;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(false, el.checked);
+    then(function() {
+      assert.strictEqual(true, el.checked);
 
-    el.click();
-    assert.strictEqual(true, model.val);
+      model.val = false;
 
-    el.click();
-    assert.strictEqual(false, model.val);
+    }).then(function() {
+      assert.strictEqual(false, el.checked);
 
-    el.addEventListener('click', function() {
+      el.click();
       assert.strictEqual(true, model.val);
-    });
-    el.addEventListener('change', function() {
-      assert.strictEqual(true, model.val);
-    });
 
-    var event = document.createEvent('MouseEvent');
-    event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
-        false, false, false, 0, null);
-    el.dispatchEvent(event);
+      el.click();
+      assert.strictEqual(false, model.val);
+
+      el.addEventListener('click', function() {
+        assert.strictEqual(true, model.val);
+      });
+      el.addEventListener('change', function() {
+        assert.strictEqual(true, model.val);
+      });
+
+      var event = document.createEvent('MouseEvent');
+      event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
+          false, false, false, 0, null);
+      el.dispatchEvent(event);
+
+      done();
+    })
   });
 
-  test('(Checkbox)Input.checked - binding updated on click', function() {
+  test('(Checkbox)Input.checked - binding updated on click', function(done) {
     var model = {val: true};
 
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
     el.bind('checked', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(true, el.checked);
 
-    el.addEventListener('click', function() {
-      assert.strictEqual(false, model.val);
-    });
+    then(function() {
+      assert.strictEqual(true, el.checked);
 
-    var event = document.createEvent('MouseEvent');
-    event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
-        false, false, false, 0, null);
-    el.dispatchEvent(event);
+      el.addEventListener('click', function() {
+        assert.strictEqual(false, model.val);
+      });
+
+      var event = document.createEvent('MouseEvent');
+      event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
+          false, false, false, 0, null);
+      el.dispatchEvent(event);
+
+      done();
+    })
   });
 
-  test('(Checkbox)Input.checked - binding updated on change', function() {
+  test('(Checkbox)Input.checked - binding updated on change', function(done) {
     var model = {val: true};
 
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
     el.bind('checked', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(true, el.checked);
 
-    el.addEventListener('change', function() {
-      assert.strictEqual(false, model.val);
+    then(function() {
+      assert.strictEqual(true, el.checked);
+
+      el.addEventListener('change', function() {
+        assert.strictEqual(false, model.val);
+      });
+
+      var event = document.createEvent('MouseEvent');
+      event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
+          false, false, false, 0, null);
+      el.dispatchEvent(event);
+
+      done();
     });
-
-    var event = document.createEvent('MouseEvent');
-    event.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false,
-        false, false, false, 0, null);
-    el.dispatchEvent(event);
   });
 
-  test('(Radio)Input.checked', function() {
+  test('(Radio)Input.checked', function(done) {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
     var model = {x: true};
@@ -509,18 +582,22 @@ suite('Form Element Bindings', function() {
 
     model.x = false;
     assert.isTrue(input.checked);
-    Platform.performMicrotaskCheckpoint();
-    assert.isFalse(input.checked);
 
-    input.checked = true;
-    dispatchEvent('change', input);
-    assert.isTrue(model.x);
+    then(function() {
+      assert.isFalse(input.checked);
 
-    input.unbind('checked');
+      input.checked = true;
+      dispatchEvent('change', input);
+      assert.isTrue(model.x);
 
-    input.checked = false;
-    dispatchEvent('change', input);
-    assert.isTrue(model.x);
+      input.unbind('checked');
+
+      input.checked = false;
+      dispatchEvent('change', input);
+      assert.isTrue(model.x);
+
+      done();
+    });
   });
 
   test('(Radio)Input.checked - oneTime', function() {
@@ -538,7 +615,7 @@ suite('Form Element Bindings', function() {
     assert.isFalse(input.checked);
   });
 
-  function radioInputChecked2(host) {
+  function radioInputChecked2(host, done) {
     var model = {val1: true, val2: false, val3: false, val4: true};
     var RADIO_GROUP_NAME = 'test';
 
@@ -564,50 +641,54 @@ suite('Form Element Bindings', function() {
     el4.name = 'othergroup';
     el4.bind('checked', new PathObserver(model, 'val4'));
 
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(true, el1.checked);
-    assert.strictEqual(false, el2.checked);
-    assert.strictEqual(false, el3.checked);
-    assert.strictEqual(true, el4.checked);
+    then(function() {
+      assert.strictEqual(true, el1.checked);
+      assert.strictEqual(false, el2.checked);
+      assert.strictEqual(false, el3.checked);
+      assert.strictEqual(true, el4.checked);
 
-    model.val1 = false;
-    model.val2 = true;
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(false, el1.checked);
-    assert.strictEqual(true, el2.checked);
-    assert.strictEqual(false, el3.checked);
-    assert.strictEqual(true, el4.checked);
+      model.val1 = false;
+      model.val2 = true;
 
-    el1.checked = true;
-    dispatchEvent('change', el1);
-    assert.strictEqual(true, model.val1);
-    assert.strictEqual(false, model.val2);
-    assert.strictEqual(false, model.val3);
-    assert.strictEqual(true, model.val4);
+    }).then(function() {
+      assert.strictEqual(false, el1.checked);
+      assert.strictEqual(true, el2.checked);
+      assert.strictEqual(false, el3.checked);
+      assert.strictEqual(true, el4.checked);
 
-    el3.checked = true;
-    dispatchEvent('change', el3);
-    assert.strictEqual(false, model.val1);
-    assert.strictEqual(false, model.val2);
-    assert.strictEqual(true, model.val3);
-    assert.strictEqual(true, model.val4);
+      el1.checked = true;
+      dispatchEvent('change', el1);
+      assert.strictEqual(true, model.val1);
+      assert.strictEqual(false, model.val2);
+      assert.strictEqual(false, model.val3);
+      assert.strictEqual(true, model.val4);
+
+      el3.checked = true;
+      dispatchEvent('change', el3);
+      assert.strictEqual(false, model.val1);
+      assert.strictEqual(false, model.val2);
+      assert.strictEqual(true, model.val3);
+      assert.strictEqual(true, model.val4);
+
+      unbindAll(host);
+      done();
+    })
   }
 
-  test('(Radio)Input.checked 2', function() {
-    radioInputChecked2(testDiv);
+  test('(Radio)Input.checked 2', function(done) {
+    radioInputChecked2(testDiv, done);
   });
 
-  test('(Radio)Input.checked 2 - ShadowRoot', function() {
+  test('(Radio)Input.checked 2 - ShadowRoot', function(done) {
     if (!HTMLElement.prototype.webkitCreateShadowRoot)
       return;
 
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
-    radioInputChecked2(shadowRoot);
-    unbindAll(shadowRoot);
+    radioInputChecked2(shadowRoot, done);
   });
 
-  function radioInputCheckedMultipleForms(host) {
+  function radioInputCheckedMultipleForms(host, done) {
     var model = {val1: true, val2: false, val3: false, val4: true};
     var RADIO_GROUP_NAME = 'test';
 
@@ -635,46 +716,49 @@ suite('Form Element Bindings', function() {
     el4.name = RADIO_GROUP_NAME;
     el4.bind('checked', new PathObserver(model, 'val4'));
 
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(true, el1.checked);
-    assert.strictEqual(false, el2.checked);
-    assert.strictEqual(false, el3.checked);
-    assert.strictEqual(true, el4.checked);
+    then(function() {
+      assert.strictEqual(true, el1.checked);
+      assert.strictEqual(false, el2.checked);
+      assert.strictEqual(false, el3.checked);
+      assert.strictEqual(true, el4.checked);
 
-    el2.checked = true;
-    dispatchEvent('change', el2);
-    assert.strictEqual(false, model.val1);
-    assert.strictEqual(true, model.val2);
+      el2.checked = true;
+      dispatchEvent('change', el2);
+      assert.strictEqual(false, model.val1);
+      assert.strictEqual(true, model.val2);
 
-    // Radio buttons in form2 should be unaffected
-    assert.strictEqual(false, model.val3);
-    assert.strictEqual(true, model.val4);
+      // Radio buttons in form2 should be unaffected
+      assert.strictEqual(false, model.val3);
+      assert.strictEqual(true, model.val4);
 
-    el3.checked = true;
-    dispatchEvent('change', el3);
-    assert.strictEqual(true, model.val3);
-    assert.strictEqual(false, model.val4);
+      el3.checked = true;
+      dispatchEvent('change', el3);
+      assert.strictEqual(true, model.val3);
+      assert.strictEqual(false, model.val4);
 
-    // Radio buttons in form1 should be unaffected
-    assert.strictEqual(false, model.val1);
-    assert.strictEqual(true, model.val2);
+      // Radio buttons in form1 should be unaffected
+      assert.strictEqual(false, model.val1);
+      assert.strictEqual(true, model.val2);
+
+      unbindAll(host);
+      done();
+    })
   }
 
-  test('(Radio)Input.checked - multiple forms', function() {
-    radioInputCheckedMultipleForms(testDiv);
+  test('(Radio)Input.checked - multiple forms', function(done) {
+    radioInputCheckedMultipleForms(testDiv, done);
   });
 
-test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
+  test('(Radio)Input.checked - multiple forms - ShadowRoot', function(done) {
     if (!HTMLElement.prototype.webkitCreateShadowRoot)
       return;
 
     var div = document.createElement('div');
     var shadowRoot = div.webkitCreateShadowRoot();
-    radioInputCheckedMultipleForms(shadowRoot);
-    unbindAll(shadowRoot);
+    radioInputCheckedMultipleForms(shadowRoot, done);
   });
 
-  test('Select.selectedIndex', function() {
+  test('Select.selectedIndex', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
@@ -686,15 +770,18 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     };
 
     select.bind('selectedIndex', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(2, select.selectedIndex);
+    then(function() {
+      assert.strictEqual(2, select.selectedIndex);
 
-    select.selectedIndex = 1;
-    dispatchEvent('change', select);
-    assert.strictEqual(1, model.val);
+      select.selectedIndex = 1;
+      dispatchEvent('change', select);
+      assert.strictEqual(1, model.val);
+
+      done();
+    });
   });
 
-  test('Select.selectedIndex - oneTime', function() {
+  test('Select.selectedIndex - oneTime', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
@@ -702,11 +789,15 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     var option2 = select.appendChild(document.createElement('option'));
 
     select.bind('selectedIndex', 2, true);
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(2, select.selectedIndex);
+
+    then(function() {
+      assert.strictEqual(2, select.selectedIndex);
+
+      done();
+    });
   });
 
-  test('Select.selectedIndex - path NaN', function() {
+  test('Select.selectedIndex - path NaN', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
@@ -719,11 +810,14 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     };
 
     select.bind('selectedIndex', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(0, select.selectedIndex);
+    then(function() {
+      assert.strictEqual(0, select.selectedIndex);
+
+      done();
+    });
   });
 
-  test('Option.value', function() {
+  test('Option.value', function(done) {
     var option = testDiv.appendChild(document.createElement('option'));
     var model = {x: 42};
     option.bind('value', new PathObserver(model, 'x'));
@@ -731,8 +825,12 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
 
     model.x = 'Hi';
     assert.strictEqual('42', option.value);
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('Hi', option.value);
+
+    then(function() {
+      assert.strictEqual('Hi', option.value);
+
+      done();
+    });
   });
 
   test('Option.value - oneTime', function() {
@@ -741,7 +839,7 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     assert.strictEqual('42', option.value);
   });
 
-  test('Select.selectedIndex - path unreachable', function() {
+  test('Select.selectedIndex - path unreachable', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
@@ -752,11 +850,15 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     var model = {};
 
     select.bind('selectedIndex', new PathObserver(model, 'val'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual(0, select.selectedIndex);
+
+    then(function() {
+      assert.strictEqual(0, select.selectedIndex);
+
+      done();
+    });
   });
 
-  test('Select.value', function() {
+  test('Select.value', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
     var option0 = select.appendChild(document.createElement('option'));
@@ -775,20 +877,26 @@ test('(Radio)Input.checked - multiple forms - ShadowRoot', function() {
     option2.bind('value', new PathObserver(model, 'opt2'));
 
     select.bind('value', new PathObserver(model, 'selected'));
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('b', select.value);
 
-    select.value = 'c';
-    dispatchEvent('change', select);
-    assert.strictEqual('c', model.selected);
+    then(function() {
+      assert.strictEqual('b', select.value);
 
-    model.opt2 = 'X';
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('X', select.value);
-    assert.strictEqual('X', model.selected);
+      select.value = 'c';
+      dispatchEvent('change', select);
+      assert.strictEqual('c', model.selected);
 
-    model.selected = 'a';
-    Platform.performMicrotaskCheckpoint();
-    assert.strictEqual('a', select.value);
+      model.opt2 = 'X';
+
+    }).then(function() {
+      assert.strictEqual('X', select.value);
+      assert.strictEqual('X', model.selected);
+
+      model.selected = 'a';
+
+    }).then(function() {
+      assert.strictEqual('a', select.value);
+
+      done();
+    });
   });
 });
