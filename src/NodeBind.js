@@ -164,7 +164,7 @@
       observable.close = capturedClose;
       observable.close();
       capturedClose = undefined;
-    }
+    };
 
     return el.bindings[name] = observable;
   }
