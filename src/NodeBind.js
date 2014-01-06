@@ -133,46 +133,7 @@
     };
   }
 
-  function isEventHandler(name) {
-    return name[0] === 'o' &&
-           name[1] === 'n' &&
-           name[2] === '-';
-  }
-
-  function eventBinding(el, name, value, oneTime) {
-    var eventType = name.substring(3);
-    if (oneTime) {
-      el.addEventListener(eventType, value);
-      return;
-    }
-
-    var observable = value;
-    unbind(el, name);
-    function eventHandler() {
-      var fn = observable.discardChanges();
-      fn.apply(this, arguments);
-    }
-
-    el.addEventListener(eventType, eventHandler);
-
-    var capturedClose = observable.close;
-    observable.close = function() {
-      if (!capturedClose)
-        return;
-      el.removeEventListener(eventType, eventHandler);
-
-      observable.close = capturedClose;
-      observable.close();
-      capturedClose = undefined;
-    };
-
-    return el.bindings[name] = observable;
-  }
-
   Element.prototype.bind = function(name, value, oneTime) {
-    if (isEventHandler(name))
-      return eventBinding(this, name, value, oneTime);
-
     var conditional = name[name.length - 1] == '?';
     if (conditional) {
       this.removeAttribute(name);
