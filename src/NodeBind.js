@@ -185,6 +185,11 @@
       case 'select-multiple':
       case 'select-one':
         return 'change';
+      case 'range':
+        if (/Trident/.test(navigator.userAgent) ||
+            /MSIE/.test(navigator.userAgent)) {
+          return 'change';
+        }
       default:
         return 'input';
     }
