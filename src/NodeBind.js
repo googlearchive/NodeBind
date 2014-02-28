@@ -70,9 +70,11 @@
     node.data = sanitizeValue(value);
   }
 
-  function textBinding(node) {
+  function textBinding(node, binding) {
     return function(value) {
-      return updateText(node, value);
+      if (node.bindings.textContent === binding) {
+        updateText(node, value);
+      }
     };
   }
 
@@ -84,7 +86,7 @@
       return updateText(this, value);
 
     unbind(this, 'textContent');
-    updateText(this, value.open(textBinding(this)));
+    updateText(this, value.open(textBinding(this, value)));
     return this.bindings.textContent = value;
   }
 
@@ -100,9 +102,11 @@
     el.setAttribute(name, sanitizeValue(value));
   }
 
-  function attributeBinding(el, name, conditional) {
+  function attributeBinding(el, name, conditional, binding) {
     return function(value) {
-      updateAttribute(el, name, conditional, value);
+      if (el.bindings[name] === binding) {
+        updateAttribute(el, name, conditional, value);
+      }
     };
   }
 
@@ -118,7 +122,7 @@
 
     unbind(this, name);
     updateAttribute(this, name, conditional,
-        value.open(attributeBinding(this, name, conditional)));
+        value.open(attributeBinding(this, name, conditional, value)));
 
     return this.bindings[name] = value;
   };
@@ -170,9 +174,11 @@
     input[property] = (santizeFn || sanitizeValue)(value);
   }
 
-  function inputBinding(input, property, santizeFn) {
+  function inputBinding(input, property, santizeFn, binding) {
     return function(value) {
-      return updateInput(input, property, value, santizeFn);
+      if (input.bindings[property] === binding) {
+        updateInput(input, property, value, santizeFn);
+      }
     }
   }
 
@@ -265,7 +271,7 @@
     unbind(this, name);
     bindInputEvent(this, name, value, postEventFn);
     updateInput(this, name,
-                value.open(inputBinding(this, name, sanitizeFn)),
+                value.open(inputBinding(this, name, sanitizeFn, value)),
                 sanitizeFn);
 
     return this.bindings[name] = value;
@@ -283,7 +289,7 @@
     unbind(this, 'value');
     bindInputEvent(this, 'value', value);
     updateInput(this, 'value',
-                value.open(inputBinding(this, 'value', sanitizeValue)));
+                value.open(inputBinding(this, 'value', sanitizeValue, value)));
 
     return this.bindings.value = value;
   }
@@ -310,9 +316,11 @@
     }
   }
 
-  function optionBinding(option) {
+  function optionBinding(option, binding) {
     return function(value) {
-      updateOption(option, value);
+      if (option.bindings.value === binding) {
+        updateOption(option, value);
+      }
     }
   }
 
@@ -327,7 +335,7 @@
 
     unbind(this, 'value');
     bindInputEvent(this, 'value', value);
-    updateOption(this, value.open(optionBinding(this)));
+    updateOption(this, value.open(optionBinding(this, value)));
     return this.bindings.value = value;
   }
 
@@ -346,7 +354,7 @@
     unbind(this, name);
     bindInputEvent(this, name, value);
     updateInput(this, name,
-                value.open(inputBinding(this, name)));
+                value.open(inputBinding(this, name, undefined, value)));
     return this.bindings[name] = value;
   }
 })(this);

@@ -116,6 +116,29 @@ suite('Text bindings', function() {
       done();
     });
   });
+
+
+  test('Duplicate binding', function(done) {
+    var text = document.createTextNode('hi');
+    var model1 = {a: 1};
+    var observer1 = new PathObserver(model1, 'a');
+    var model2 = {a: 2};
+    var observer2 = new PathObserver(model2, 'a');
+    text.bind('textContent', observer1);
+    assert.strictEqual('1', text.data);
+    text.bind('textContent', observer2);
+    assert.strictEqual('2', text.data);
+
+    model1.a = 11;
+    then(function() {
+      assert.strictEqual('1', text.data);
+      model2.a = 22;
+    }).then(function() {
+      assert.strictEqual('22', text.data);
+
+      done();
+    });
+  });
 });
 
 suite('Element attribute bindings', function() {
@@ -234,6 +257,29 @@ suite('Element attribute bindings', function() {
     var model = {};
     element.bind('id', new PathObserver(model, 'a'));
     assert.strictEqual(element.id, '');
+  });
+
+  test('Duplicate binding', function(done) {
+    var div = testDiv.appendChild(document.createElement('div'));
+    var model1 = {a: 1};
+    var observer1 = new PathObserver(model1, 'a');
+    var model2 = {a: 2};
+    var observer2 = new PathObserver(model2, 'a');
+    div.bind('foo', observer1);
+    assert.strictEqual('1', div.getAttribute('foo'));
+    div.bind('foo', observer2);
+    assert.strictEqual('2', div.getAttribute('foo'));
+    assert.strictEqual(/* closed */ 2, observer1.state_);
+
+    model1.a = 11;
+    then(function() {
+      assert.strictEqual('1', div.getAttribute('foo'));
+      model2.a = 22;
+    }).then(function() {
+      //assert.strictEqual('22', div.getAttribute('foo'));
+
+      done();
+    });
   });
 });
 
