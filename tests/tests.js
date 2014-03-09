@@ -323,7 +323,7 @@ suite('Form Element Bindings', function() {
     inputTextAreaPathUnreachable('textarea');
   });
 
-  test('Input.value - user value rejected', function(done) {
+  test('Input.value - detailed', function(done) {
     var model = {val: 'ping'};
 
     var el = testDiv.appendChild(document.createElement('input'));
@@ -375,6 +375,32 @@ suite('Form Element Bindings', function() {
       dispatchEvent('input', el);
       assert.strictEqual(undefined, Path.get('a.b.c').getValueFrom(model));
 
+      done();
+    });
+  });
+
+  test('Input.value - user value rejected', function(done) {
+    var model = {val: 'ping'};
+
+    var rejector = new PathObserver(model, 'val');
+    rejector.open(function() {
+      model.val = 'ping';
+    });
+
+    var el = testDiv.appendChild(document.createElement('input'));
+    el.bind('value', new PathObserver(model, 'val'));
+
+    then(function() {
+      assert.strictEqual('ping', el.value);
+
+      el.value = 'pong';
+      dispatchEvent('input', el);
+
+    }).then(function() {
+      // rejector will have set the bound value back to 'ping'.
+      assert.strictEqual('ping', el.value);
+
+      rejector.close();
       done();
     });
   });
