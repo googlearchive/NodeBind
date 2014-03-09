@@ -83,9 +83,13 @@
     if (oneTime)
       return updateText(this, value);
 
+    var observable = value;
+
     unbind(this, 'textContent');
-    updateText(this, value.open(textBinding(this)));
-    return this.bindings.textContent = value;
+
+    updateText(this, observable.open(textBinding(this)));
+
+    return this.bindings.textContent = observable;
   }
 
   function updateAttribute(el, name, conditional, value) {
@@ -117,10 +121,12 @@
       return updateAttribute(this, name, conditional, value);
 
     unbind(this, name);
-    updateAttribute(this, name, conditional,
-        value.open(attributeBinding(this, name, conditional)));
 
-    return this.bindings[name] = value;
+    var observable = value;
+    updateAttribute(this, name, conditional,
+        observable.open(attributeBinding(this, name, conditional)));
+
+    return this.bindings[name] = observable;
   };
 
   var checkboxEventType;
@@ -189,15 +195,13 @@
     }
     input.addEventListener(eventType, eventHandler);
 
-    var capturedClose = observable.close;
-    observable.close = function() {
-      if (!capturedClose)
-        return;
-      input.removeEventListener(eventType, eventHandler);
+    return {
+      close: function() {
+        input.removeEventListener(eventType, eventHandler);
+        observable.close();
+      },
 
-      observable.close = capturedClose;
-      observable.close();
-      capturedClose = undefined;
+      observable_: observable
     }
   }
 
@@ -244,7 +248,7 @@
         var checkedBinding = radio.bindings.checked;
         if (checkedBinding) {
           // Set the value directly to avoid an infinite call stack.
-          checkedBinding.setValue(false);
+          checkedBinding.observable_.setValue(false);
         }
       });
     }
@@ -254,7 +258,6 @@
     if (name !== 'value' && name !== 'checked')
       return HTMLElement.prototype.bind.call(this, name, value, oneTime);
 
-
     this.removeAttribute(name);
     var sanitizeFn = name == 'checked' ? booleanSanitize : sanitizeValue;
     var postEventFn = name == 'checked' ? checkedPostEvent : noop;
@@ -263,12 +266,14 @@
       return updateInput(this, name, value, sanitizeFn);
 
     unbind(this, name);
-    bindInputEvent(this, name, value, postEventFn);
+
+    var observable = value;
+    var binding = bindInputEvent(this, name, observable, postEventFn);
     updateInput(this, name,
-                value.open(inputBinding(this, name, sanitizeFn)),
+                observable.open(inputBinding(this, name, sanitizeFn)),
                 sanitizeFn);
 
-    return this.bindings[name] = value;
+    return this.bindings[name] = binding;
   }
 
   HTMLTextAreaElement.prototype.bind = function(name, value, oneTime) {
@@ -281,11 +286,13 @@
       return updateInput(this, 'value', value);
 
     unbind(this, 'value');
-    bindInputEvent(this, 'value', value);
-    updateInput(this, 'value',
-                value.open(inputBinding(this, 'value', sanitizeValue)));
 
-    return this.bindings.value = value;
+    var observable = value;
+    var binding = bindInputEvent(this, 'value', observable);
+    updateInput(this, 'value',
+                observable.open(inputBinding(this, 'value', sanitizeValue)));
+
+    return this.bindings.value = binding;
   }
 
   function updateOption(option, value) {
@@ -304,8 +311,8 @@
     option.value = sanitizeValue(value);
 
     if (select && select.value != oldValue) {
-      selectBinding.setValue(select.value);
-      selectBinding.discardChanges();
+      selectBinding.observable_.setValue(select.value);
+      selectBinding.observable_.discardChanges();
       Platform.performMicrotaskCheckpoint();
     }
   }
@@ -326,9 +333,12 @@
       return updateOption(this, value);
 
     unbind(this, 'value');
-    bindInputEvent(this, 'value', value);
-    updateOption(this, value.open(optionBinding(this)));
-    return this.bindings.value = value;
+
+    var observable = value;
+    var binding = bindInputEvent(this, 'value', observable);
+    updateOption(this, observable.open(optionBinding(this)));
+
+    return this.bindings.value = binding;
   }
 
   HTMLSelectElement.prototype.bind = function(name, value, oneTime) {
@@ -344,9 +354,12 @@
       return updateInput(this, name, value);
 
     unbind(this, name);
-    bindInputEvent(this, name, value);
+
+    var observable = value;
+    var binding = bindInputEvent(this, name, observable);
     updateInput(this, name,
-                value.open(inputBinding(this, name)));
-    return this.bindings[name] = value;
+                observable.open(inputBinding(this, name)));
+
+    return this.bindings[name] = binding;
   }
 })(this);
