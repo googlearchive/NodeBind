@@ -17,20 +17,23 @@
 // webkit.
 var testDiv;
 
-function unbindAll(node) {
-  node.unbindAll();
-  for (var child = node.firstChild; child; child = child.nextSibling)
-    unbindAll(child);
-}
+var bindings;
 
 function doSetup() {
   testDiv = document.body.appendChild(document.createElement('div'));
+  bindings = [];
 }
 
 function doTeardown() {
   assert.isFalse(!!Observer._errorThrownDuringCallback);
   document.body.removeChild(testDiv);
-  unbindAll(testDiv);
+
+  for (var i = 0; i < bindings.length; i++) {
+    var binding = bindings[i];
+    if (binding)
+      binding.close();
+  }
+
   Platform.performMicrotaskCheckpoint();
   assert.strictEqual(0, Observer._allObserversCount);
 }
@@ -63,39 +66,33 @@ suite('Text bindings', function() {
   test('Basic', function(done) {
     var text = document.createTextNode('hi');
     var model = {a: 1};
-    text.bind('textContent', new PathObserver(model, 'a'));
+    bindings.push(text.bind('textContent', new PathObserver(model, 'a')));
     assert.strictEqual('1', text.data);
 
     model.a = 2;
     then(function() {
       assert.strictEqual('2', text.data);
-      text.unbind('textContent');
-      model.a = 3;
-    }).then(function() {
-      // TODO(rafaelw): Throw on binding to unavailable property?
-      assert.strictEqual('2', text.data);
-
       done();
     });
   });
 
   test('oneTime', function() {
     var text = document.createTextNode('hi');
-    text.bind('textContent', 1, true);
+    bindings.push(text.bind('textContent', 1, true));
     assert.strictEqual('1', text.data);
   });
 
   test('No Path', function() {
     var text = testDiv.appendChild(document.createTextNode('hi'));
     var model = 1;
-    text.bind('textContent', new PathObserver(model));
+    bindings.push(text.bind('textContent', new PathObserver(model)));
     assert.strictEqual('1', text.data);
   });
 
   test('Path unreachable', function() {
     var text = testDiv.appendChild(document.createTextNode('hi'));
     var model = {};
-    text.bind('textContent', new PathObserver(model, 'a'));
+    bindings.push(text.bind('textContent', new PathObserver(model, 'a')))
     assert.strictEqual(text.data, '');
   });
 
@@ -103,7 +100,7 @@ suite('Text bindings', function() {
     var text = document.createTextNode('');
     var model = {a: { b: { c: 1}}};
     var observer = new PathObserver(model, 'a.b.c');
-    text.bind('textContent', observer);
+    bindings.push(text.bind('textContent', observer));
     assert.strictEqual(1, Observer._allObserversCount);
     assert.strictEqual('1', text.data);
 
@@ -111,7 +108,6 @@ suite('Text bindings', function() {
 
     then(function() {
       assert.strictEqual('2', text.data);
-      text.unbind('textContent');
 
       done();
     });
@@ -126,7 +122,7 @@ suite('Element attribute bindings', function() {
   test('Basic', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    el.bind('foo', new PathObserver(model, 'a'));
+    bindings.push(el.bind('foo', new PathObserver(model, 'a')));
 
     then(function() {
       assert.strictEqual('1', el.getAttribute('foo'));
@@ -155,17 +151,33 @@ suite('Element attribute bindings', function() {
     });
   });
 
+  test('Platform.enableBindingsReflection', function(done) {
+    var el = testDiv.appendChild(document.createElement('div'));
+    var model = {a: '1'};
+    Platform.enableBindingsReflection(true);
+    bindings.push(el.bind('foo', new PathObserver(model, 'a')));
+    bindings.push(el.bind('bar', new PathObserver(model, 'a')));
+    bindings.push(el.bind('baz', new PathObserver(model, 'a')));
+
+    then(function() {
+      assert.deepEqual(['bar', 'baz', 'foo'],
+                         Object.keys(el.bindings_).sort());
+      Platform.enableBindingsReflection(false);
+      done();
+    });
+  });
+
   test('oneTime', function() {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    el.bind('foo', 1, true);
+    bindings.push(el.bind('foo', 1, true));
     assert.strictEqual('1', el.getAttribute('foo'));
   });
 
   test('No path', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = 1;
-    el.bind('foo', new PathObserver(model));
+    bindings.push(el.bind('foo', new PathObserver(model)));
 
     then(function() {
       assert.strictEqual('1', el.getAttribute('foo'));
@@ -177,7 +189,7 @@ suite('Element attribute bindings', function() {
   test('Path unreachable', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {};
-    el.bind('foo', new PathObserver(model, 'bar'));
+    bindings.push(el.bind('foo', new PathObserver(model, 'bar')));
 
     then(function() {
       assert.strictEqual('', el.getAttribute('foo'));
@@ -189,7 +201,7 @@ suite('Element attribute bindings', function() {
   test('Dashes', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    el.bind('foo-bar', new PathObserver(model, 'a'));
+    bindings.push(el.bind('foo-bar', new PathObserver(model, 'a')));
 
     then(function() {
       assert.strictEqual('1', el.getAttribute('foo-bar'));
@@ -205,8 +217,8 @@ suite('Element attribute bindings', function() {
   test('Element.id, Element.hidden?', function(done) {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {a: 1, b: 2};
-    element.bind('hidden?', new PathObserver(model, 'a'));
-    element.bind('id', new PathObserver(model, 'b'));
+    bindings.push(element.bind('hidden?', new PathObserver(model, 'a')));
+    bindings.push(element.bind('id', new PathObserver(model, 'b')));
 
     assert.isTrue(element.hasAttribute('hidden'));
     assert.strictEqual('', element.getAttribute('hidden'));
@@ -232,7 +244,7 @@ suite('Element attribute bindings', function() {
   test('Element.id - path unreachable', function() {
     var element = testDiv.appendChild(document.createElement('div'));
     var model = {};
-    element.bind('id', new PathObserver(model, 'a'));
+    bindings.push(element.bind('id', new PathObserver(model, 'a')));
     assert.strictEqual(element.id, '');
   });
 });
@@ -245,7 +257,7 @@ suite('Form Element Bindings', function() {
   function inputTextAreaValueTest(type, done) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = {x: 42};
-    el.bind('value', new PathObserver(model, 'x'));
+    bindings.push(el.bind('value', new PathObserver(model, 'x')));
     assert.strictEqual('42', el.value);
 
     model.x = 'Hi';
@@ -258,17 +270,6 @@ suite('Form Element Bindings', function() {
       dispatchEvent('input', el);
       assert.strictEqual('changed', model.x);
 
-      el.unbind('value');
-
-      el.value = 'changed again';
-      dispatchEvent('input', el);
-      assert.strictEqual('changed', model.x);
-
-      el.bind('value', new PathObserver(model, 'x'));
-      model.x = null;
-    }).then(function() {
-      assert.strictEqual('', el.value);
-
       done();
     });
   }
@@ -276,14 +277,14 @@ suite('Form Element Bindings', function() {
   function inputTextAreaNoPath(type) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = 42;
-    el.bind('value', new PathObserver(model));
+    bindings.push(el.bind('value', new PathObserver(model)));
     assert.strictEqual('42', el.value);
   }
 
   function inputTextAreaPathUnreachable(type) {
     var el = testDiv.appendChild(document.createElement(type));
     var model = {};
-    el.bind('value', new PathObserver(model, 'a'));
+    bindings.push(el.bind('value', new PathObserver(model, 'a')));
     assert.strictEqual('', el.value);
   }
 
@@ -293,7 +294,7 @@ suite('Form Element Bindings', function() {
 
   test('Input.value - oneTime', function() {
     var el = testDiv.appendChild(document.createElement('input'));
-    el.bind('value', 42, true);
+    bindings.push(el.bind('value', 42, true));
     assert.strictEqual('42', el.value);
   });
 
@@ -311,7 +312,7 @@ suite('Form Element Bindings', function() {
 
   test('TextArea.value - oneTime', function() {
     var el = testDiv.appendChild(document.createElement('textarea'));
-    el.bind('value', 42, true);
+    bindings.push(el.bind('value', 42, true));
     assert.strictEqual('42', el.value);
   });
 
@@ -323,62 +324,6 @@ suite('Form Element Bindings', function() {
     inputTextAreaPathUnreachable('textarea');
   });
 
-  test('Input.value - detailed', function(done) {
-    var model = {val: 'ping'};
-
-    var el = testDiv.appendChild(document.createElement('input'));
-    el.bind('value', new PathObserver(model, 'val'));
-
-    then(function() {
-      assert.strictEqual('ping', el.value);
-
-      el.value = 'pong';
-      dispatchEvent('input', el);
-      assert.strictEqual('pong', model.val);
-
-      // Try a deep path.
-      model = {
-        a: {
-          b: {
-            c: 'ping'
-          }
-        }
-      };
-
-      el.bind('value', new PathObserver(model, 'a.b.c'));
-
-    }).then(function() {
-      assert.strictEqual('ping', el.value);
-
-      el.value = 'pong';
-      dispatchEvent('input', el);
-      assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
-
-      // Start with the model property being absent.
-      delete model.a.b.c;
-
-    }).then(function() {
-      assert.strictEqual('', el.value);
-
-      el.value = 'pong';
-      dispatchEvent('input', el);
-      assert.strictEqual('pong', Path.get('a.b.c').getValueFrom(model));
-
-    }).then(function() {
-      // Model property unreachable (and unsettable).
-      delete model.a.b;
-
-    }).then(function() {
-      assert.strictEqual('', el.value);
-
-      el.value = 'pong';
-      dispatchEvent('input', el);
-      assert.strictEqual(undefined, Path.get('a.b.c').getValueFrom(model));
-
-      done();
-    });
-  });
-
   test('Input.value - user value rejected', function(done) {
     var model = {val: 'ping'};
 
@@ -388,7 +333,7 @@ suite('Form Element Bindings', function() {
     });
 
     var el = testDiv.appendChild(document.createElement('input'));
-    el.bind('value', new PathObserver(model, 'val'));
+    bindings.push(el.bind('value', new PathObserver(model, 'val')));
 
     then(function() {
       assert.strictEqual('ping', el.value);
@@ -410,7 +355,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(input);
     input.type = 'checkbox';
     var model = {x: true};
-    input.bind('checked', new PathObserver(model, 'x'));
+    bindings.push(input.bind('checked', new PathObserver(model, 'x')));
     assert.isTrue(input.checked);
 
     model.x = false;
@@ -434,7 +379,7 @@ suite('Form Element Bindings', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(input);
     input.type = 'checkbox';
-    input.bind('checked', true, true);
+    bindings.push(input.bind('checked', true, true));
     assert.isTrue(input.checked);
   });
 
@@ -443,7 +388,7 @@ suite('Form Element Bindings', function() {
     testDiv.appendChild(input);
     input.type = 'checkbox';
     var model = {};
-    input.bind('checked', new PathObserver(model, 'x'));
+    bindings.push(input.bind('checked', new PathObserver(model, 'x')));
     assert.isFalse(input.checked);
   });
 
@@ -453,7 +398,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', new PathObserver(model, 'val'));
+    bindings.push(el.bind('checked', new PathObserver(model, 'val')));
 
     then(function() {
       assert.strictEqual(true, el.checked);
@@ -491,7 +436,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', new PathObserver(model, 'val'));
+    bindings.push(el.bind('checked', new PathObserver(model, 'val')));
 
     then(function() {
       assert.strictEqual(true, el.checked);
@@ -515,7 +460,7 @@ suite('Form Element Bindings', function() {
     var el = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(el);
     el.type = 'checkbox';
-    el.bind('checked', new PathObserver(model, 'val'));
+    bindings.push(el.bind('checked', new PathObserver(model, 'val')));
 
     then(function() {
       assert.strictEqual(true, el.checked);
@@ -537,7 +482,7 @@ suite('Form Element Bindings', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
     var model = {x: true};
-    input.bind('checked', new PathObserver(model, 'x'));
+    bindings.push(input.bind('checked', new PathObserver(model, 'x')));
     assert.isTrue(input.checked);
 
     model.x = false;
@@ -550,12 +495,6 @@ suite('Form Element Bindings', function() {
       dispatchEvent('change', input);
       assert.isTrue(model.x);
 
-      input.unbind('checked');
-
-      input.checked = false;
-      dispatchEvent('change', input);
-      assert.isTrue(model.x);
-
       done();
     });
   });
@@ -563,7 +502,7 @@ suite('Form Element Bindings', function() {
   test('(Radio)Input.checked - oneTime', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
-    input.bind('checked', true, true);
+    bindings.push(input.bind('checked', true, true));
     assert.isTrue(input.checked);
   });
 
@@ -571,7 +510,7 @@ suite('Form Element Bindings', function() {
     var input = testDiv.appendChild(document.createElement('input'));
     input.type = 'radio';
     var model = {};
-    input.bind('checked', new PathObserver(model, 'x'));
+    bindings.push(input.bind('checked', new PathObserver(model, 'x')));
     assert.isFalse(input.checked);
   });
 
@@ -584,22 +523,22 @@ suite('Form Element Bindings', function() {
     var el1 = container.appendChild(document.createElement('input'));
     el1.type = 'radio';
     el1.name = RADIO_GROUP_NAME;
-    el1.bind('checked', new PathObserver(model, 'val1'));
+    bindings.push(el1.bind('checked', new PathObserver(model, 'val1')));
 
     var el2 = container.appendChild(document.createElement('input'));
     el2.type = 'radio';
     el2.name = RADIO_GROUP_NAME;
-    el2.bind('checked', new PathObserver(model, 'val2'));
+    bindings.push(el2.bind('checked', new PathObserver(model, 'val2')));
 
     var el3 = container.appendChild(document.createElement('input'));
     el3.type = 'radio';
     el3.name = RADIO_GROUP_NAME;
-    el3.bind('checked', new PathObserver(model, 'val3'));
+    bindings.push(el3.bind('checked', new PathObserver(model, 'val3')));
 
     var el4 = container.appendChild(document.createElement('input'));
     el4.type = 'radio';
     el4.name = 'othergroup';
-    el4.bind('checked', new PathObserver(model, 'val4'));
+    bindings.push(el4.bind('checked', new PathObserver(model, 'val4')));
 
     then(function() {
       assert.strictEqual(true, el1.checked);
@@ -630,7 +569,6 @@ suite('Form Element Bindings', function() {
       assert.strictEqual(true, model.val3);
       assert.strictEqual(true, model.val4);
 
-      unbindAll(host);
       done();
     })
   }
@@ -661,22 +599,22 @@ suite('Form Element Bindings', function() {
     var el1 = form1.appendChild(document.createElement('input'));
     el1.type = 'radio';
     el1.name = RADIO_GROUP_NAME;
-    el1.bind('checked', new PathObserver(model, 'val1'));
+    bindings.push(el1.bind('checked', new PathObserver(model, 'val1')));
 
     var el2 = form1.appendChild(document.createElement('input'));
     el2.type = 'radio';
     el2.name = RADIO_GROUP_NAME;
-    el2.bind('checked', new PathObserver(model, 'val2'));
+    bindings.push(el2.bind('checked', new PathObserver(model, 'val2')));
 
     var el3 = form2.appendChild(document.createElement('input'));
     el3.type = 'radio';
     el3.name = RADIO_GROUP_NAME;
-    el3.bind('checked', new PathObserver(model, 'val3'));
+    bindings.push(el3.bind('checked', new PathObserver(model, 'val3')));
 
     var el4 = form2.appendChild(document.createElement('input'));
     el4.type = 'radio';
     el4.name = RADIO_GROUP_NAME;
-    el4.bind('checked', new PathObserver(model, 'val4'));
+    bindings.push(el4.bind('checked', new PathObserver(model, 'val4')));
 
     then(function() {
       assert.strictEqual(true, el1.checked);
@@ -702,7 +640,6 @@ suite('Form Element Bindings', function() {
       assert.strictEqual(false, model.val1);
       assert.strictEqual(true, model.val2);
 
-      unbindAll(host);
       done();
     })
   }
@@ -733,7 +670,7 @@ suite('Form Element Bindings', function() {
       val: 2
     };
 
-    select.bind('selectedIndex', new PathObserver(model, 'val'));
+    bindings.push(select.bind('selectedIndex', new PathObserver(model, 'val')));
     then(function() {
       assert.strictEqual(2, select.selectedIndex);
 
@@ -752,7 +689,7 @@ suite('Form Element Bindings', function() {
     var option1 = select.appendChild(document.createElement('option'));
     var option2 = select.appendChild(document.createElement('option'));
 
-    select.bind('selectedIndex', 2, true);
+    bindings.push(select.bind('selectedIndex', 2, true));
 
     then(function() {
       assert.strictEqual(2, select.selectedIndex);
@@ -773,7 +710,7 @@ suite('Form Element Bindings', function() {
       val: 'foo'
     };
 
-    select.bind('selectedIndex', new PathObserver(model, 'val'));
+    bindings.push(select.bind('selectedIndex', new PathObserver(model, 'val')));
     then(function() {
       assert.strictEqual(0, select.selectedIndex);
 
@@ -784,7 +721,7 @@ suite('Form Element Bindings', function() {
   test('Option.value', function(done) {
     var option = testDiv.appendChild(document.createElement('option'));
     var model = {x: 42};
-    option.bind('value', new PathObserver(model, 'x'));
+    bindings.push(option.bind('value', new PathObserver(model, 'x')));
     assert.strictEqual('42', option.value);
 
     model.x = 'Hi';
@@ -799,7 +736,7 @@ suite('Form Element Bindings', function() {
 
   test('Option.value - oneTime', function() {
     var option = testDiv.appendChild(document.createElement('option'));
-    option.bind('value', 42, true);
+    bindings.push(option.bind('value', 42, true));
     assert.strictEqual('42', option.value);
   });
 
@@ -813,7 +750,7 @@ suite('Form Element Bindings', function() {
 
     var model = {};
 
-    select.bind('selectedIndex', new PathObserver(model, 'val'));
+    bindings.push(select.bind('selectedIndex', new PathObserver(model, 'val')));
 
     then(function() {
       assert.strictEqual(0, select.selectedIndex);
@@ -836,11 +773,11 @@ suite('Form Element Bindings', function() {
       selected: 'b'
     };
 
-    option0.bind('value', new PathObserver(model, 'opt0'));
-    option1.bind('value', new PathObserver(model, 'opt1'));
-    option2.bind('value', new PathObserver(model, 'opt2'));
+    bindings.push(option0.bind('value', new PathObserver(model, 'opt0')));
+    bindings.push(option1.bind('value', new PathObserver(model, 'opt1')));
+    bindings.push(option2.bind('value', new PathObserver(model, 'opt2')));
 
-    select.bind('value', new PathObserver(model, 'selected'));
+    bindings.push(select.bind('value', new PathObserver(model, 'selected')));
 
     then(function() {
       assert.strictEqual('b', select.value);

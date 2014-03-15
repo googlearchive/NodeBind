@@ -25,42 +25,24 @@
     return typeof node.getElementById === 'function' ? node : null;
   }
 
-
   Node.prototype.bind = function(name, observable) {
     console.error('Unhandled binding to Node: ', this, name, observable);
   };
 
-  function unbind(node, name) {
-    var bindings = node.bindings;
-    if (!bindings) {
-      node.bindings = {};
-      return;
-    }
+  function updateBindings(node, name, binding) {
+    var bindings = node.bindings_;
+    if (!bindings)
+      bindings = node.bindings_ = {};
 
-    var binding = bindings[name];
-    if (!binding)
-      return;
+    if (bindings[name])
+      binding[name].close();
 
-    binding.close();
-    bindings[name] = undefined;
+    return bindings[name] = binding;
   }
 
-  Node.prototype.unbind = function(name) {
-    unbind(this, name);
-  };
-
-  Node.prototype.unbindAll = function() {
-    if (!this.bindings)
-      return;
-    var names = Object.keys(this.bindings);
-    for (var i = 0; i < names.length; i++) {
-      var binding = this.bindings[names[i]];
-      if (binding)
-        binding.close();
-    }
-
-    this.bindings = {};
-  };
+  function returnBinding(node, name, binding) {
+    return binding;
+  }
 
   function sanitizeValue(value) {
     return value == null ? '' : value;
@@ -76,6 +58,12 @@
     };
   }
 
+  var maybeUpdateBindings = returnBinding;
+
+  Platform.enableBindingsReflection = function(enable) {
+    maybeUpdateBindings = enable? updateBindings : returnBinding;
+  };
+
   Text.prototype.bind = function(name, value, oneTime) {
     if (name !== 'textContent')
       return Node.prototype.bind.call(this, name, value, oneTime);
@@ -84,12 +72,8 @@
       return updateText(this, value);
 
     var observable = value;
-
-    unbind(this, 'textContent');
-
     updateText(this, observable.open(textBinding(this)));
-
-    return this.bindings.textContent = observable;
+    return maybeUpdateBindings(this, name, observable);
   }
 
   function updateAttribute(el, name, conditional, value) {
@@ -120,13 +104,12 @@
     if (oneTime)
       return updateAttribute(this, name, conditional, value);
 
-    unbind(this, name);
 
     var observable = value;
     updateAttribute(this, name, conditional,
         observable.open(attributeBinding(this, name, conditional)));
 
-    return this.bindings[name] = observable;
+    return maybeUpdateBindings(this, name, observable);
   };
 
   var checkboxEventType;
@@ -245,7 +228,7 @@
     if (input.tagName === 'INPUT' &&
         input.type === 'radio') {
       getAssociatedRadioButtons(input).forEach(function(radio) {
-        var checkedBinding = radio.bindings.checked;
+        var checkedBinding = radio.bindings_.checked;
         if (checkedBinding) {
           // Set the value directly to avoid an infinite call stack.
           checkedBinding.observable_.setValue(false);
@@ -265,7 +248,6 @@
     if (oneTime)
       return updateInput(this, name, value, sanitizeFn);
 
-    unbind(this, name);
 
     var observable = value;
     var binding = bindInputEvent(this, name, observable, postEventFn);
@@ -273,7 +255,8 @@
                 observable.open(inputBinding(this, name, sanitizeFn)),
                 sanitizeFn);
 
-    return this.bindings[name] = binding;
+    // Checkboxes may need to update bindings of other checkboxes.
+    return updateBindings(this, name, binding);
   }
 
   HTMLTextAreaElement.prototype.bind = function(name, value, oneTime) {
@@ -285,14 +268,11 @@
     if (oneTime)
       return updateInput(this, 'value', value);
 
-    unbind(this, 'value');
-
     var observable = value;
     var binding = bindInputEvent(this, 'value', observable);
     updateInput(this, 'value',
                 observable.open(inputBinding(this, 'value', sanitizeValue)));
-
-    return this.bindings.value = binding;
+    return maybeUpdateBindings(this, name, binding);
   }
 
   function updateOption(option, value) {
@@ -301,10 +281,10 @@
     var selectBinding;
     var oldValue;
     if (parentNode instanceof HTMLSelectElement &&
-        parentNode.bindings &&
-        parentNode.bindings.value) {
+        parentNode.bindings_ &&
+        parentNode.bindings_.value) {
       select = parentNode;
-      selectBinding = select.bindings.value;
+      selectBinding = select.bindings_.value;
       oldValue = select.value;
     }
 
@@ -332,13 +312,10 @@
     if (oneTime)
       return updateOption(this, value);
 
-    unbind(this, 'value');
-
     var observable = value;
     var binding = bindInputEvent(this, 'value', observable);
     updateOption(this, observable.open(optionBinding(this)));
-
-    return this.bindings.value = binding;
+    return maybeUpdateBindings(this, name, binding);
   }
 
   HTMLSelectElement.prototype.bind = function(name, value, oneTime) {
@@ -353,13 +330,12 @@
     if (oneTime)
       return updateInput(this, name, value);
 
-    unbind(this, name);
-
     var observable = value;
     var binding = bindInputEvent(this, name, observable);
     updateInput(this, name,
                 observable.open(inputBinding(this, name)));
 
-    return this.bindings[name] = binding;
+    // Option update events may need to access select bindings.
+    return updateBindings(this, name, binding);
   }
 })(this);
