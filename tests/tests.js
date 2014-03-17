@@ -154,7 +154,7 @@ suite('Element attribute bindings', function() {
   test('Platform.enableBindingsReflection', function(done) {
     var el = testDiv.appendChild(document.createElement('div'));
     var model = {a: '1'};
-    Platform.enableBindingsReflection(true);
+    Platform.enableBindingsReflection = true;
     bindings.push(el.bind('foo', new PathObserver(model, 'a')));
     bindings.push(el.bind('bar', new PathObserver(model, 'a')));
     bindings.push(el.bind('baz', new PathObserver(model, 'a')));
@@ -162,7 +162,7 @@ suite('Element attribute bindings', function() {
     then(function() {
       assert.deepEqual(['bar', 'baz', 'foo'],
           Object.keys(el.bindings_).sort());
-      Platform.enableBindingsReflection(false);
+      Platform.enableBindingsReflection = false;
       done();
     });
   });

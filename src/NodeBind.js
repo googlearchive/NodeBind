@@ -60,9 +60,16 @@
 
   var maybeUpdateBindings = returnBinding;
 
-  Platform.enableBindingsReflection = function(enable) {
-    maybeUpdateBindings = enable? updateBindings : returnBinding;
-  };
+  Object.defineProperty(Platform, 'enableBindingsReflection', {
+    get: function() {
+      return maybeUpdateBindings === updateBindings;
+    },
+    set: function(enable) {
+      maybeUpdateBindings = enable ? updateBindings : returnBinding;
+      return enable;
+    },
+    configurable: true
+  });
 
   Text.prototype.bind = function(name, value, oneTime) {
     if (name !== 'textContent')
