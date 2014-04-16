@@ -22,6 +22,8 @@
     console.error('Unhandled binding to Node: ', this, name, observable);
   };
 
+  Node.prototype.bindFinished = function() {};
+
   function updateBindings(node, name, binding) {
     var bindings = node.bindings_;
     if (!bindings)
