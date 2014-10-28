@@ -2,7 +2,7 @@
   "name": "Node-bind",
   "version": "0.0.0",
   "description": "README.md",
-  "main": "grunt.js",
+  "main": "./src/NodeBind.js",
   "directories": {
     "test": "tests"
   },
