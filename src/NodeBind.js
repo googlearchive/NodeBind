@@ -8,8 +8,19 @@
 (function(global) {
   'use strict';
 
-  Node.prototype.bind = function(name, observable) {
-    console.error('Unhandled binding to Node: ', this, name, observable);
+  Node.prototype.bind = function(name, observable, oneTime) {
+    var self = this;
+
+    if (oneTime) {
+      this[name] = observable;
+      return;
+    }
+
+    observable.open(function(value) {
+      self[name] = value;
+    });
+
+    return observable;
   };
 
   function sanitizeValue(value) {
@@ -38,40 +49,26 @@
     return observable;
   }
 
-  function updateAttribute(el, name, conditional, value) {
-    if (conditional) {
-      if (value)
-        el.setAttribute(name, '');
-      else
-        el.removeAttribute(name);
-      return;
-    }
-
+  function updateAttribute(el, name, value) {
     el.setAttribute(name, sanitizeValue(value));
   }
 
-  function attributeBinding(el, name, conditional) {
+  function attributeBinding(el, name) {
     return function(value) {
-      updateAttribute(el, name, conditional, value);
+      updateAttribute(el, name, value);
     };
   }
 
   Element.prototype.bind = function(name, value, oneTime) {
-    var conditional = name[name.length - 1] == '?';
-    if (conditional) {
-      this.removeAttribute(name);
-      name = name.slice(0, -1);
-    }
+    if (name !== 'style' && name !== 'class')
+      return Node.prototype.bind.call(this, name, value, oneTime);
 
     if (oneTime)
-      return updateAttribute(this, name, conditional, value);
-
+      return updateAttribute(this, name, value);
 
     var observable = value;
-    updateAttribute(this, name, conditional,
-        observable.open(attributeBinding(this, name, conditional)));
-
+    updateAttribute(this, name, observable.open(attributeBinding(this, name)));
     return observable;
-  };
+  }
 
 })(this);
