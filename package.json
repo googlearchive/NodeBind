@@ -1,6 +1,6 @@
 {
-  "name": "Node-bind",
-  "version": "0.0.0",
+  "name": "node-bind",
+  "version": "0.4.2",
   "description": "README.md",
   "main": "./src/NodeBind.js",
   "directories": {
@@ -8,10 +8,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Polymer/Node-bind.git"
+    "url": "https://github.com/Polymer/NodeBind.git"
   },
-  "author": "",
-  "license": "Apache License 2.0",
+  "author": "The Polymer Authors",
+  "license": "BSD",
   "devDependencies": {
     "chai": "*",
     "mocha": ">=1.9",
