@@ -173,7 +173,11 @@
     var eventType = getEventForInputType(input);
 
     function eventHandler() {
-      observable.setValue(input[property]);
+      if (property == 'value' && input.type == 'number' )
+        observable.setValue(input.valueAsNumber);
+      else
+        observable.setValue(input[property]);
+
       observable.discardChanges();
       (postEventFn || noop)(input);
       Platform.performMicrotaskCheckpoint();
