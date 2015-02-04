@@ -652,6 +652,22 @@ suite('Form Element Bindings', function() {
     radioInputCheckedMultipleForms(shadowRoot, done);
   });
 
+  test('(Number)Input.value', function(done) {
+    var input = testDiv.appendChild(document.createElement('input'));
+    testDiv.appendChild(input);
+    input.type = 'number';
+    var model = {x: 0};
+    bindings.push(input.bind('value', new PathObserver(model, 'x')));
+    input.value = "999";
+
+    then(function() {
+      dispatchEvent('input', input);
+      assert.isNumber(model.x);
+      assert.strictEqual(999, model.x);
+      done();
+    });
+  });
+
   test('Select.selectedIndex', function(done) {
     var select = testDiv.appendChild(document.createElement('select'));
     testDiv.appendChild(select);
