@@ -652,7 +652,7 @@ suite('Form Element Bindings', function() {
     radioInputCheckedMultipleForms(shadowRoot, done);
   });
 
-  test('(Number)Input.number', function(done) {
+  test('(Number)Input.value', function(done) {
     var input = testDiv.appendChild(document.createElement('input'));
     testDiv.appendChild(input);
     input.type = 'number';
