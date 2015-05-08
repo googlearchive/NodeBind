@@ -30,7 +30,7 @@
       bindings = node.bindings_ = {};
 
     if (bindings[name])
-      binding[name].close();
+      bindings[name].close();
 
     return bindings[name] = binding;
   }
